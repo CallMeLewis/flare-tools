@@ -1,0 +1,96 @@
+# Checks the tag and the repo, builds a release, signs it and publishes it as a GitHub release, then updates the update
+# feed on R2 to point at it.
+# Runs when `pnpm release` pushes a v<version> tag. To build a tag again, run it from the Actions tab on main and enter
+# the tag: the workflow then comes from main, with any fixes, and the code from the tag.
+#
+# Needs the repository secrets TAURI_SIGNING_PRIVATE_KEY (the contents of the update signing key),
+# CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID for writing the feed to R2, and CERTUM_USERNAME and CERTUM_TOTP_SECRET
+# for signing the build with the code signing certificate (see build.yml).
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Tag to build, such as v1.2.0
+        required: true
+
+permissions:
+  contents: read
+
+env:
+  TAG: ${{ inputs.tag || github.ref_name }}
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  version:
+    name: Check the version
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ env.TAG }}
+          fetch-depth: 0
+      - name: Tag matches package.json
+        run: |
+          version=$(node -p 'require("./package.json").version')
+          if [ "$TAG" != "v$version" ]; then
+            echo "::error::Run this on the tag v$version (package.json's version), not $TAG."
+            exit 1
+          fi
+      - name: Tag is on main
+        run: |
+          if ! git merge-base --is-ancestor HEAD origin/main; then
+            echo "::error::$TAG isn't on main. Release from a commit that has been merged into main."
+            exit 1
+          fi
+
+  # Checks the repo, then builds (build.yml), the same as CI, with the installer signed. The update signature is added
+  # after, in publish, since signing the installer changes it.
+  build:
+    name: Build
+    needs: version
+    uses: ./.github/workflows/build.yml
+    with:
+      ref: ${{ inputs.tag || github.ref_name }}
+      sign: true
+    secrets:
+      CERTUM_USERNAME: ${{ secrets.CERTUM_USERNAME }}
+      CERTUM_TOTP_SECRET: ${{ secrets.CERTUM_TOTP_SECRET }}
+
+  publish:
+    name: Publish
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ env.TAG }}
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # Back where the build would be on a desktop, which is where the release script looks for it.
+      - uses: actions/download-artifact@v8
+        with:
+          name: windows
+          path: src-tauri/target/release/bundle/nsis
+      - name: Sign and publish
+        run: node scripts/publish-update.ts publish
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}

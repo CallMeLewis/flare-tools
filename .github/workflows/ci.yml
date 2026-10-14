@@ -1,0 +1,36 @@
+# Checks and builds every push to main and every pull request, so a change that breaks the build shows up before it's
+# released. The installer is kept for two weeks under the run's artifacts, for trying a change out.
+# Run it from the Actions tab with "Sign the Windows build" to check code signing works without making a release.
+name: CI
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ["docs/**", "README.md", "NOTICE.md", "TRADEMARKS.md", "LICENSE"]
+  pull_request:
+    branches: [main]
+    paths-ignore: ["docs/**", "README.md", "NOTICE.md", "TRADEMARKS.md", "LICENSE"]
+  workflow_dispatch:
+    inputs:
+      sign:
+        description: Sign the Windows build
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+# A newer push to the same branch or pull request replaces a run still in progress.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build
+    uses: ./.github/workflows/build.yml
+    with:
+      sign: ${{ inputs.sign == true }}
+    secrets:
+      CERTUM_USERNAME: ${{ secrets.CERTUM_USERNAME }}
+      CERTUM_TOTP_SECRET: ${{ secrets.CERTUM_TOTP_SECRET }}

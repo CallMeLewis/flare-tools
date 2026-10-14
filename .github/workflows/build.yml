@@ -1,0 +1,183 @@
+# Checks the repo and builds the Windows installer from it, starts the build to check it stays open, and checks the
+# release script against it. Called by CI on every push and pull request, and by Release before it publishes. The
+# checks and the build run side by side, to finish sooner; Release only publishes once every one of them has passed.
+#
+# Caches are only saved from main: GitHub lets tags and pull requests read main's caches but not each other's, so main is
+# what keeps release builds warm.
+#
+# Third-party actions are pinned to a commit, with its version as a comment, so a moved tag can't change what runs in
+# Release next to the signing key; GitHub's own actions follow their major version tags. To update a pin, take the
+# commit of a release that has been out for a week or more.
+#
+# With `sign`, the build is signed with the code signing certificate, which is kept in Certum's cloud and reached
+# through SimplySign Desktop. It needs the secrets CERTUM_USERNAME (the SimplySign account's email) and
+# CERTUM_TOTP_SECRET (the secret from the otpauth:// link SimplySign gave when the account was activated).
+name: Build
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: Commit, branch or tag to check out (the triggering commit when empty)
+        type: string
+        default: ""
+      sign:
+        description: Sign the build with the code signing certificate
+        type: boolean
+        default: false
+    secrets:
+      CERTUM_USERNAME:
+        required: false
+      CERTUM_TOTP_SECRET:
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  frontend:
+    name: Check the frontend
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Release notes are written
+        run: pnpm changelog
+      - name: Type check and build
+        run: pnpm build
+
+  # Flare Tools only runs on Windows, and the backend uses Windows-only crates, so it's checked there.
+  rust:
+    name: Check the backend
+    runs-on: windows-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+        working-directory: src-tauri
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref }}
+      - name: Install Rust (the version in rust-toolchain.toml)
+        run: rustup toolchain install
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: src-tauri
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      # Tauri expects the built frontend to exist; the checks don't need it, so an empty folder will do.
+      - run: mkdir -p ../dist
+      - name: Formatted
+        run: cargo fmt --check
+      - name: Clippy
+        run: cargo clippy --all-targets --locked -- -D warnings
+      - name: Test
+        run: cargo test --locked
+
+  windows:
+    name: Build for Windows
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Install Rust (the version in rust-toolchain.toml)
+        run: rustup toolchain install
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: src-tauri
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - run: pnpm install --frozen-lockfile
+      # `pnpm dist` in two halves: compiled first, then bundled into the installer. When signing, the certificate is only
+      # available while bundling, so the dependencies' build scripts never run with it. The frontend job checks the
+      # release notes.
+      - run: pnpm exec tauri build --no-bundle
+      - name: Sign in to SimplySign
+        id: certum
+        if: inputs.sign
+        uses: jay0lee/certum-cloud-code-sign@a3324503499c49090869856eeeecfe95fb613d87 # v1
+        with:
+          username: ${{ secrets.CERTUM_USERNAME }}
+          totp_secret: ${{ secrets.CERTUM_TOTP_SECRET }}
+          # The certificate's thumbprint, which changes when it's renewed (it expires on 2027-10-14).
+          cert_sha1: E69CB959A6F5FD84D053BACBB3A0F1EB13E65DA7
+      # Tauri signs the app, its uninstaller and the installer with the sign command, when there is one.
+      - name: Bundle the installer
+        shell: pwsh
+        run: |
+          $config = @()
+          if ($env:SIGNTOOL) {
+            $file = "$env:RUNNER_TEMP\signing.conf.json"
+            $sign = "sign", "/sha1", $env:THUMBPRINT, "/fd", "sha256", "/tr", "http://time.certum.pl", "/td", "sha256", "%1"
+            @{ bundle = @{ windows = @{ signCommand = @{ cmd = $env:SIGNTOOL; args = $sign } } } } |
+              ConvertTo-Json -Depth 5 | Set-Content $file
+            $config = "--config", $file
+          }
+          pnpm exec tauri bundle --bundles nsis @config
+        env:
+          SIGNTOOL: ${{ steps.certum.outputs.signtool-path }}
+          THUMBPRINT: ${{ steps.certum.outputs.cert-thumbprint }}
+      # Tauri puts the unsigned app back in target/release after bundling, so this checks the one it installs.
+      - name: Installer and app are signed
+        if: inputs.sign
+        shell: pwsh
+        run: |
+          $installer = (Get-Item src-tauri/target/release/bundle/nsis/*-setup.exe).FullName
+          $dir = "$env:RUNNER_TEMP\signed"
+          Start-Process $installer -ArgumentList "/S", "/D=$dir" -Wait
+          foreach ($file in @($installer) + (Get-ChildItem $dir -Filter *.exe).FullName) {
+            & $env:SIGNTOOL verify /pa $file
+            if ($LASTEXITCODE) { throw "$file isn't signed." }
+          }
+        env:
+          SIGNTOOL: ${{ steps.certum.outputs.signtool-path }}
+      - name: Sign out of SimplySign
+        if: always() && steps.certum.outcome != 'skipped'
+        uses: jay0lee/certum-cloud-code-sign/teardown@a3324503499c49090869856eeeecfe95fb613d87 # v1
+      - uses: actions/upload-artifact@v7
+        with:
+          name: windows
+          path: src-tauri/target/release/bundle/nsis/*.exe
+          if-no-files-found: error
+          retention-days: 14
+      - name: Installs, starts and stays open
+        shell: bash
+        run: node scripts/smoke-test.ts src-tauri/target/release/bundle/nsis/*-setup.exe
+
+  # Goes through publishing with the build, as far as it can without the signing key, so a release script that no
+  # longer fits the build or the changelog shows up here rather than on release day.
+  release:
+    name: Check the release
+    needs: windows
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # Where Release's publish job puts it too.
+      - uses: actions/download-artifact@v8
+        with:
+          name: windows
+          path: src-tauri/target/release/bundle/nsis
+      - run: node scripts/publish-update.ts check
