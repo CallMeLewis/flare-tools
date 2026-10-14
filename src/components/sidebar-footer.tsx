@@ -43,8 +43,9 @@ export function SidebarFooter() {
         </TooltipTrigger>
         <TooltipContent side="top">Theme: {THEME_LABEL[theme]}. Click to change.</TooltipContent>
       </Tooltip>
-      {/* On the right, apart from the two that change how the app looks. */}
-      <div className="ml-auto">
+      {/* On the right, apart from the two that change how the app looks. Flex, not block: in a block the
+          button sits on a text line, and the taller download icon lowers its baseline and stretches the line. */}
+      <div className="ml-auto flex">
         <UpdateButton />
       </div>
     </div>
