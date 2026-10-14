@@ -175,7 +175,7 @@ export function ModView({
             </Button>
           )}
           <DisabledHint reason={buildHint}>
-            <Button size="lg" onClick={onBuild} disabled={busy || blocked} className="min-w-28">
+            <Button onClick={onBuild} disabled={busy || blocked} className="min-w-28">
               {running ? <Spinner data-icon="inline-start" /> : <HammerIcon data-icon="inline-start" />}
               {running ? "Building…" : "Build"}
               {!running && <Kbd className="ml-1 bg-primary-foreground/10 text-primary-foreground/70">Ctrl B</Kbd>}
