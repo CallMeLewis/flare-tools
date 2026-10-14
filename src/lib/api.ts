@@ -139,6 +139,9 @@ export type SteamStatus =
   | { state: "ready"; userName: string; steamId: string }
   | { state: "unavailable"; message: string };
 
+/** Whether the Steam client is up, read without connecting to it. */
+export type SteamPresence = "notRunning" | "signedOut" | "signedIn";
+
 export type Visibility = "public" | "friendsOnly" | "unlisted" | "private";
 
 export interface WorkshopItem {
@@ -256,6 +259,7 @@ export const api = {
   openFolder: (path: string) => invoke<void>("open_folder", { path }),
   openUrl: (url: string) => invoke<void>("open_url", { url }),
   steamStatus: () => invoke<SteamStatus>("steam_status"),
+  steamPresence: () => invoke<SteamPresence>("steam_presence"),
   workshopItems: () => invoke<WorkshopItem[]>("workshop_items"),
   readFile: (path: string) => invoke<ArrayBuffer>("read_file", { path }),
   inspectContent: (path: string) => invoke<ContentSummary>("inspect_content", { path }),
@@ -284,6 +288,9 @@ export function workshopUrl(id: string): string {
 }
 
 /** Opens a web page inside the Steam client, where the user is already signed in. */
+/** Starts the Steam client, or brings it to the front if it's already running. */
+export const OPEN_STEAM_URL = "steam://open/main";
+
 export function steamUrl(url: string): string {
   return `steam://openurl/${url}`;
 }

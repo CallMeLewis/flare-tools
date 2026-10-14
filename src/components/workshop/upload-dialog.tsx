@@ -46,8 +46,8 @@ interface UploadDialogProps {
   mods: ModConfig[];
   /** Progress while this item is being published. */
   progress: PublishProgress | null;
-  /** True while another item is publishing, since Steam uploads one at a time. */
-  busy: boolean;
+  /** Why uploading has to wait, such as another item publishing or Steam being away. */
+  blockedReason: string | null;
   /** Whether the page has edits that haven't been saved, which the upload leaves alone. */
   pageDirty: boolean;
   onUpload: (request: UploadRequest) => void;
@@ -62,7 +62,17 @@ const STAGE_LABEL: Record<PublishStage, string> = {
 };
 
 /** Chooses the files for a new version (or a new item's first files) and sends them to Steam. */
-export function UploadDialog({ open, onOpenChange, item, title, mods, progress, busy, pageDirty, onUpload }: UploadDialogProps) {
+export function UploadDialog({
+  open,
+  onOpenChange,
+  item,
+  title,
+  mods,
+  progress,
+  blockedReason,
+  pageDirty,
+  onUpload,
+}: UploadDialogProps) {
   const [contentPath, setContentPath] = useState("");
   const [changeNote, setChangeNote] = useState("");
   const content = useContentSummary(contentPath);
@@ -88,13 +98,7 @@ export function UploadDialog({ open, onOpenChange, item, title, mods, progress, 
   else if (content && content.fileCount === 0) problems.push("The folder is empty.");
   if (changeNote.length > LIMITS.changeNote) problems.push("The change note is too long.");
 
-  const hint = publishing
-    ? null
-    : busy
-      ? "Another item is publishing. Steam uploads one at a time."
-      : problems.length > 0
-        ? problems[0]
-        : null;
+  const hint = publishing ? null : (blockedReason ?? (problems.length > 0 ? problems[0] : null));
 
   const percent = progress && progress.total > 0 ? Math.round((progress.processed / progress.total) * 100) : null;
 
@@ -234,7 +238,7 @@ export function UploadDialog({ open, onOpenChange, item, title, mods, progress, 
           <DisabledHint reason={hint}>
             <Button
               onClick={() => onUpload({ contentPath: contentPath.trim(), changeNote: changeNote.trim() })}
-              disabled={publishing || busy || problems.length > 0}
+              disabled={publishing || Boolean(blockedReason) || problems.length > 0}
             >
               {publishing ? <Spinner data-icon="inline-start" /> : <UploadCloudIcon data-icon="inline-start" />}
               {publishing ? (isNew ? "Publishing…" : "Uploading…") : isNew ? "Publish" : "Upload"}

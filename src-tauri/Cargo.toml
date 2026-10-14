@@ -1,6 +1,6 @@
 [package]
 name = "flare-tools"
-version = "0.1.0"
+version = "0.1.1"
 description = "Flare Tools: builds, signs and publishes DayZ mods"
 authors = ["CallMeLewis"]
 license = "GPL-3.0-or-later"
@@ -29,6 +29,7 @@ winreg = "0.55"
 steamworks = "0.13"
 tauri-plugin-updater = "2"
 tokio = { version = "1", features = ["time"] }
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Threading"] }
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration

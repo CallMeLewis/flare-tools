@@ -20,13 +20,14 @@ import {
 import { toast } from "sonner";
 
 import { InstallUpdateDialog } from "@/components/install-update-dialog";
+import { LicencesDialog } from "@/components/licences-dialog";
 import { PathInput } from "@/components/path-input";
 import { ReleaseNotesLink } from "@/components/release-notes";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Progress } from "@/components/ui/progress";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import { useUpdateStatus } from "@/hooks/use-update-status";
@@ -104,6 +105,9 @@ const SECTIONS: { id: SectionId; label: string; icon: LucideIcon; description: s
   // Pinned to the bottom of the menu.
   { id: "about", label: "About", icon: InfoIcon, description: "Version, updates and who made the app.", pinned: true },
 ];
+
+/** A raised surface on the content pane, matching the cards in the main window. */
+const PANEL = "rounded-xl border bg-card text-card-foreground";
 
 const AUTHOR = "CallMeLewis";
 const REPO_URL = "https://github.com/CallMeLewis/flare-tools";
@@ -225,7 +229,7 @@ function SettingsBody({
   function renderFields(fields: PathField[]) {
     if (!draft) return null;
     return (
-      <FieldGroup className="gap-6">
+      <FieldGroup className="gap-6 p-4">
         {fields.map(({ key, label, description, filters }) => {
           const value = draft[key];
           const missing = fieldBroken(key);
@@ -289,7 +293,8 @@ function SettingsBody({
         </nav>
       </div>
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      {/* The page background, like the main window, so the sections' cards stand out from it. */}
+      <div className="flex min-w-0 flex-1 flex-col bg-background">
         {/* Room on the right for the dialog's close button. */}
         <header className="flex h-16 shrink-0 items-center gap-4 border-b pr-14 pl-6">
           <div className="min-w-0 flex-1">
@@ -318,9 +323,9 @@ function SettingsBody({
           ) : (
             <div className="flex flex-col gap-6 p-6">
               {section === "tools" && (
-                <>
+                <div className={cn(PANEL, "overflow-hidden")}>
                   {renderFields(TOOL_FIELDS)}
-                  <div className="flex items-center gap-3 rounded-lg border border-dashed p-3">
+                  <div className="flex items-center gap-3 border-t bg-muted/50 px-4 py-3">
                     <p className="flex-1 text-xs text-muted-foreground">
                       Reads where pboProject and DayZ Tools are installed from the registry, and fills in anything
                       it finds.
@@ -330,9 +335,9 @@ function SettingsBody({
                       Detect tools
                     </Button>
                   </div>
-                </>
+                </div>
               )}
-              {section === "defaults" && renderFields(DEFAULT_FIELDS)}
+              {section === "defaults" && <div className={PANEL}>{renderFields(DEFAULT_FIELDS)}</div>}
               {section === "steam" && <SteamSection />}
               {section === "appearance" && (
                 <>
@@ -370,7 +375,7 @@ function SteamSection() {
 
   if (!steam) {
     return (
-      <p className="flex items-center gap-2 text-sm text-muted-foreground">
+      <p className={cn(PANEL, "flex items-center gap-2 p-4 text-sm text-muted-foreground")}>
         <Spinner className="size-4" />
         Connecting to Steam…
       </p>
@@ -379,7 +384,7 @@ function SteamSection() {
 
   if (steam.state === "unavailable") {
     return (
-      <div className="flex items-start gap-3 rounded-lg border p-4">
+      <div className={cn(PANEL, "flex items-start gap-3 p-4")}>
         <CircleAlertIcon className="mt-0.5 size-5 shrink-0 text-destructive" aria-hidden />
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium">Can't reach Steam</p>
@@ -395,7 +400,7 @@ function SteamSection() {
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-center gap-4 rounded-lg border p-4">
+      <div className={cn(PANEL, "flex items-center gap-4 p-4")}>
         <span
           className="flex size-12 shrink-0 items-center justify-center rounded-full bg-sidebar-accent text-lg font-semibold text-sidebar-accent-foreground"
           aria-hidden
@@ -436,8 +441,12 @@ function ThemePicker({ value, onChange }: { value: ThemePreference; onChange: (t
           <label
             key={id}
             className={cn(
-              "flex cursor-pointer flex-col items-center gap-2 rounded-lg border p-4 text-center transition-colors has-focus-visible:ring-3 has-focus-visible:ring-ring/50",
-              value === id ? "border-primary bg-primary/5" : "hover:bg-muted/60",
+              PANEL,
+              "flex cursor-pointer flex-col items-center gap-2 p-4 text-center transition-colors has-focus-visible:ring-3 has-focus-visible:ring-ring/50",
+              // Tinted over the card rather than the page, so the chosen tile doesn't read darker than the others.
+              value === id
+                ? "border-primary bg-[color-mix(in_oklch,var(--primary)_5%,var(--card))]"
+                : "hover:bg-muted/60",
             )}
           >
             <input
@@ -460,7 +469,7 @@ function ThemePicker({ value, onChange }: { value: ThemePreference; onChange: (t
 
 function ScalePicker({ value, onChange }: { value: number; onChange: (scale: number) => void }) {
   return (
-    <div className="flex items-center justify-between gap-6 rounded-lg border p-4">
+    <div className={cn(PANEL, "flex items-center justify-between gap-6 p-4")}>
       <div className="min-w-0">
         <p id="ui-scale-label" className="text-sm font-medium">
           Interface size
@@ -624,7 +633,7 @@ function AboutSection() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center gap-4 rounded-lg border p-4">
+      <div className={cn(PANEL, "flex items-center gap-4 p-4")}>
         <img src="/icon.svg" alt="" className="size-14 shrink-0" />
         <div className="min-w-0 flex-1">
           <p className="text-base font-semibold">Flare Tools</p>
@@ -637,15 +646,16 @@ function AboutSection() {
         </Button>
       </div>
 
-      <div className="divide-y rounded-lg border">
+      <div className={cn(PANEL, "divide-y")}>
         <div className="flex flex-col gap-3 p-4">
           <div className="flex items-center justify-between gap-6">
             <div className="min-w-0">
-              <p className="flex flex-wrap items-baseline gap-x-2 text-sm font-medium">
+              <p className="flex flex-wrap items-center gap-x-2 text-sm font-medium">
                 Version
                 <span className="font-mono text-xs font-normal text-muted-foreground select-text">{__APP_VERSION__}</span>
                 {runningVersionNotes.length > 0 && (
                   <ReleaseNotesLink
+                    appearance="chip"
                     version={__APP_VERSION__}
                     items={runningVersionNotes}
                     description="The changes in the version you're running."
@@ -723,25 +733,32 @@ function AboutSection() {
             <SelectTrigger
               aria-labelledby="update-channel-label"
               aria-describedby="update-channel-description"
-              className="w-32 shrink-0"
+              className="w-36 shrink-0"
             >
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {CHANNELS.map(({ value, label }) => (
-                <SelectItem key={value} value={value}>
-                  {label}
-                </SelectItem>
-              ))}
+              <SelectGroup>
+                {CHANNELS.map(({ value, label }) => (
+                  <SelectItem key={value} value={value}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
             </SelectContent>
           </Select>
         </div>
       </div>
 
-      <p className="text-xs text-muted-foreground">
-        pboProject is made by Mikero. DayZ Tools and DSSignFile are made by Bohemia Interactive. This app isn't made
-        by or affiliated with either.
-      </p>
+      <div className={cn(PANEL, "flex items-center justify-between gap-6 p-4")}>
+        <div className="min-w-0">
+          <p className="text-sm font-medium">Licences</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Free software under the GPL v3. It comes with no warranty.
+          </p>
+        </div>
+        <LicencesDialog author={AUTHOR} repoUrl={REPO_URL} />
+      </div>
     </div>
   );
 }

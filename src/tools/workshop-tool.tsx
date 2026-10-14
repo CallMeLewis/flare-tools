@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { PlusIcon, RefreshCwIcon, UploadCloudIcon } from "lucide-react";
+import { PlusIcon, RefreshCwIcon, UnplugIcon, UploadCloudIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -12,6 +12,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { openSteam } from "@/components/steam-gate";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Spinner } from "@/components/ui/spinner";
@@ -36,10 +37,12 @@ const AGREEMENT_URL = steamUrl("https://steamcommunity.com/sharedfiles/workshopl
 
 interface WorkshopToolProps {
   active: boolean;
+  /** Whether Steam is running and signed in. While it isn't, editing carries on and publishing waits. */
+  steamOnline: boolean;
   onBusyChange: (busy: boolean) => void;
 }
 
-export function WorkshopTool({ active, onBusyChange }: WorkshopToolProps) {
+export function WorkshopTool({ active, steamOnline, onBusyChange }: WorkshopToolProps) {
   const [steam, setSteam] = useState<SteamStatus | null>(null);
   const [items, setItems] = useState<WorkshopItem[] | null>(null);
   const [mods, setMods] = useState<ModConfig[]>([]);
@@ -64,9 +67,11 @@ export function WorkshopTool({ active, onBusyChange }: WorkshopToolProps) {
     }
   }, []);
 
+  // Loads on opening, and again when Steam comes back, since anything could have changed while it was away.
+  // Not while it's away: a failed check would swap the editor out and lose its edits.
   useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    if (steamOnline) void refresh();
+  }, [refresh, steamOnline]);
 
   // The build tool's mods can change while this tool is hidden.
   useEffect(() => {
@@ -146,9 +151,24 @@ export function WorkshopTool({ active, onBusyChange }: WorkshopToolProps) {
         onNew={() => requestSelect(NEW)}
         onRefresh={() => void refresh()}
         refreshing={refreshing}
+        offline={!steamOnline}
       />
 
       <main className="flex min-w-0 flex-1 flex-col">
+        {!steamOnline && steam && (
+          <div
+            role="status"
+            className="flex shrink-0 items-center gap-3 border-b bg-warning/10 px-6 py-2.5 text-sm"
+          >
+            <UnplugIcon className="size-4 shrink-0 text-warning" aria-hidden />
+            <p className="flex-1">
+              Steam isn't connected. You can keep editing; publishing waits until it's back.
+            </p>
+            <Button variant="outline" size="sm" onClick={openSteam}>
+              Start Steam
+            </Button>
+          </div>
+        )}
         {!steam ? (
           <div className="flex flex-1 items-center justify-center">
             <Spinner className="size-5 text-muted-foreground" />
@@ -176,6 +196,7 @@ export function WorkshopTool({ active, onBusyChange }: WorkshopToolProps) {
             mods={mods}
             progress={publishing?.key === editorKey ? publishing.progress : null}
             busy={publishing !== null}
+            offline={!steamOnline}
             onPublish={publish}
             onDiscardNew={() => requestSelect(items?.[0]?.id ?? null)}
             onDirtyChange={setDirty}

@@ -17,6 +17,8 @@ interface ItemListProps {
   onNew: () => void;
   onRefresh: () => void;
   refreshing: boolean;
+  /** Steam has gone away. Refreshing waits for it, so the open item stays as it is. */
+  offline: boolean;
 }
 
 export function Thumbnail({ src, className }: { src: string | null; className?: string }) {
@@ -31,7 +33,7 @@ export function Thumbnail({ src, className }: { src: string | null; className?: 
   );
 }
 
-export function ItemList({ steam, items, selectedId, onSelect, onNew, onRefresh, refreshing }: ItemListProps) {
+export function ItemList({ steam, items, selectedId, onSelect, onNew, onRefresh, refreshing, offline }: ItemListProps) {
   const ready = steam?.state === "ready";
 
   return (
@@ -43,7 +45,7 @@ export function ItemList({ steam, items, selectedId, onSelect, onNew, onRefresh,
             variant="ghost"
             size="icon-sm"
             onClick={onRefresh}
-            disabled={!steam || refreshing}
+            disabled={!steam || refreshing || offline}
             aria-label="Refresh from Steam"
           >
             <RefreshCwIcon className={cn(refreshing && "animate-spin motion-reduce:animate-none")} />

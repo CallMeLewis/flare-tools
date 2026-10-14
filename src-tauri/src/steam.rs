@@ -9,6 +9,8 @@ use steamworks::{
     AppIDs, AppId, Client, FileType, PublishedFileId, PublishedFileVisibility, SteamAPIInitError, SteamError,
     UGCStatisticType, UGCType, UpdateStatus, UserList, UserListOrder,
 };
+use winreg::RegKey;
+use winreg::enums::HKEY_CURRENT_USER;
 
 /// DayZ's app id. DayZ Publisher initialises Steam as DayZ too, which is what lets it publish to DayZ's Workshop.
 pub const DAYZ: AppId = AppId(221100);
@@ -73,6 +75,51 @@ pub enum SteamStatus {
     Unavailable {
         message: String,
     },
+}
+
+/// Whether the Steam client is up, as far as it can be told without connecting to it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum SteamPresence {
+    NotRunning,
+    /// Running, but at the sign-in window or between accounts.
+    SignedOut,
+    SignedIn,
+}
+
+/// Where the Steam client records its process and signed-in account while it runs.
+const ACTIVE_PROCESS_KEY: &str = r"Software\Valve\Steam\ActiveProcess";
+
+/// Reads what Steam writes to the registry. Unlike connecting, this doesn't make Steam show the user as playing DayZ.
+fn read_presence() -> SteamPresence {
+    let Ok(key) = RegKey::predef(HKEY_CURRENT_USER).open_subkey(ACTIVE_PROCESS_KEY) else {
+        return SteamPresence::NotRunning;
+    };
+    // Steam clears the pid when it exits, but not if it crashes, so check the process is still there.
+    let pid: u32 = key.get_value("pid").unwrap_or(0);
+    if pid == 0 || !process_running(pid) {
+        return SteamPresence::NotRunning;
+    }
+    let user: u32 = key.get_value("ActiveUser").unwrap_or(0);
+    if user == 0 { SteamPresence::SignedOut } else { SteamPresence::SignedIn }
+}
+
+fn process_running(pid: u32) -> bool {
+    use windows_sys::Win32::Foundation::{CloseHandle, ERROR_ACCESS_DENIED, GetLastError, STILL_ACTIVE};
+    use windows_sys::Win32::System::Threading::{GetExitCodeProcess, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION};
+
+    // SAFETY: the handle is checked before use and closed once read.
+    unsafe {
+        let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
+        if handle.is_null() {
+            // A process we aren't allowed to look at still exists.
+            return GetLastError() == ERROR_ACCESS_DENIED;
+        }
+        let mut code = 0u32;
+        let read = GetExitCodeProcess(handle, &mut code) != 0;
+        CloseHandle(handle);
+        read && code == STILL_ACTIVE as u32
+    }
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -263,6 +310,20 @@ impl Steam {
         let connection = slot.as_mut().expect("connected above");
         connection.active += 1;
         Ok(Session { steam: self, client: connection.client.clone() })
+    }
+
+    /// Checks Steam is still up. When it isn't, an idle connection is dropped, since it can't work again and the next
+    /// request should reconnect and say why it can't, rather than time out on the old one.
+    pub fn presence(&'static self) -> SteamPresence {
+        let presence = read_presence();
+        if presence != SteamPresence::SignedIn
+            // Skipped while connecting, rather than waiting; the next check catches it.
+            && let Ok(mut slot) = self.connection.try_lock()
+            && slot.as_ref().is_some_and(|connection| connection.active == 0)
+        {
+            slot.take();
+        }
+        presence
     }
 
     pub fn status(&'static self) -> SteamStatus {

@@ -19,7 +19,7 @@ use tauri::{AppHandle, Emitter, Manager, State};
 use build::{BuildControl, BuildOutcome};
 use history::{BuildRecord, LogLine};
 use inspect::Inspection;
-use steam::{PublishOutcome, PublishRequest, STEAM, SteamStatus, WorkshopItem};
+use steam::{PublishOutcome, PublishRequest, STEAM, SteamPresence, SteamStatus, WorkshopItem};
 use store::{AppData, LastBuild, ModConfig, Settings, Store, WorkshopLink};
 
 /// Stops walking a mod's files after this many when checking for changes.
@@ -289,6 +289,12 @@ async fn steam_status() -> Result<SteamStatus, String> {
     tauri::async_runtime::spawn_blocking(|| STEAM.status()).await.map_err(|e| e.to_string())
 }
 
+/// Cheap enough to poll: it reads the registry rather than connecting to Steam.
+#[tauri::command]
+async fn steam_presence() -> Result<SteamPresence, String> {
+    tauri::async_runtime::spawn_blocking(|| STEAM.presence()).await.map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 async fn workshop_items(store: State<'_, Store>) -> Result<Vec<WorkshopItem>, String> {
     let mut items = tauri::async_runtime::spawn_blocking(|| STEAM.items()).await.map_err(|e| e.to_string())??;
@@ -359,6 +365,7 @@ pub fn run() {
             open_url,
             read_file,
             steam_status,
+            steam_presence,
             workshop_items,
             inspect_content,
             publish_item,

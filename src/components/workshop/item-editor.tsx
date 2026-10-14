@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Spinner } from "@/components/ui/spinner";
 import { Toggle } from "@/components/ui/toggle";
@@ -48,6 +48,8 @@ interface ItemEditorProps {
   progress: PublishProgress | null;
   /** True while any item is being published, since Steam uploads one at a time. */
   busy: boolean;
+  /** Steam has gone away. The page can still be edited, but nothing can be sent until it's back. */
+  offline: boolean;
   /** Resolves to whether Steam accepted the update. */
   onPublish: (request: PublishRequest) => Promise<boolean>;
   onDiscardNew: () => void;
@@ -164,7 +166,16 @@ function useLocalImage(path: string) {
   return image;
 }
 
-export function ItemEditor({ item, mods, progress, busy, onPublish, onDiscardNew, onDirtyChange }: ItemEditorProps) {
+export function ItemEditor({
+  item,
+  mods,
+  progress,
+  busy,
+  offline,
+  onPublish,
+  onDiscardNew,
+  onDirtyChange,
+}: ItemEditorProps) {
   const [page, setPage] = useState<Page>(() => pageFor(item));
   const [saving, setSaving] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -227,7 +238,15 @@ export function ItemEditor({ item, mods, progress, busy, onPublish, onDiscardNew
       ))}
     </ul>
   );
-  const busyHint = busy && !publishing ? "Another item is publishing. Steam uploads one at a time." : null;
+  // Why sending is held up by something other than this page.
+  const busyHint = publishing
+    ? null
+    : offline
+      ? "Steam isn't connected. Publishing waits until it's back."
+      : busy
+        ? "Another item is publishing. Steam uploads one at a time."
+        : null;
+  const blocked = busy || offline;
   const saveHint = locked
     ? null
     : (busyHint ?? (problems.length > 0 ? problemList : !pageChanged ? "Nothing on the page has changed." : null));
@@ -339,14 +358,14 @@ export function ItemEditor({ item, mods, progress, busy, onPublish, onDiscardNew
                 <Button
                   variant="outline"
                   onClick={() => void savePage()}
-                  disabled={locked || busy || !pageChanged || problems.length > 0}
+                  disabled={locked || blocked || !pageChanged || problems.length > 0}
                 >
                   {saving ? <Spinner data-icon="inline-start" /> : <SaveIcon data-icon="inline-start" />}
                   {saving ? "Saving…" : "Save page"}
                 </Button>
               </DisabledHint>
               <DisabledHint reason={busyHint}>
-                <Button size="lg" onClick={() => setUploadOpen(true)} disabled={locked || busy} className="min-w-28">
+                <Button size="lg" onClick={() => setUploadOpen(true)} disabled={locked || blocked} className="min-w-28">
                   <UploadCloudIcon data-icon="inline-start" />
                   Upload new version…
                 </Button>
@@ -357,7 +376,7 @@ export function ItemEditor({ item, mods, progress, busy, onPublish, onDiscardNew
               <Button
                 size="lg"
                 onClick={() => setUploadOpen(true)}
-                disabled={locked || busy || problems.length > 0}
+                disabled={locked || blocked || problems.length > 0}
                 className="min-w-28"
               >
                 <UploadCloudIcon data-icon="inline-start" />
@@ -432,11 +451,13 @@ export function ItemEditor({ item, mods, progress, busy, onPublish, onDiscardNew
                           <SelectValue>{(value: Visibility) => VISIBILITY_LABEL[value]}</SelectValue>
                         </SelectTrigger>
                         <SelectContent>
-                          {VISIBILITIES.map((v) => (
-                            <SelectItem key={v} value={v}>
-                              {VISIBILITY_LABEL[v]}
-                            </SelectItem>
-                          ))}
+                          <SelectGroup>
+                            {VISIBILITIES.map((v) => (
+                              <SelectItem key={v} value={v}>
+                                {VISIBILITY_LABEL[v]}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
                         </SelectContent>
                       </Select>
                       <FieldDescription>{VISIBILITY_DESCRIPTION[page.visibility]}</FieldDescription>
@@ -589,7 +610,7 @@ export function ItemEditor({ item, mods, progress, busy, onPublish, onDiscardNew
         title={title}
         mods={mods}
         progress={uploadOpen ? progress : null}
-        busy={busy && !publishing}
+        blockedReason={busyHint}
         pageDirty={!isNew && pageChanged}
         onUpload={(request) => void upload(request)}
       />

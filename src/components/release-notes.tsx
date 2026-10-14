@@ -1,3 +1,5 @@
+import { SparklesIcon } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -22,21 +24,35 @@ export function ReleaseNotesList({ items, className }: { items: string[]; classN
   );
 }
 
-/** A small "What's new" link that opens a version's release notes. */
+/**
+ * A small "What's new" link that opens a version's release notes. As a link it sits inside a sentence; as a chip it
+ * stands on its own beside a label.
+ */
 export function ReleaseNotesLink({
   version,
   items,
   description,
   label = "What's new",
+  appearance = "link",
 }: {
   version: string;
   items: string[];
   description?: string;
   label?: string;
+  appearance?: "link" | "chip";
 }) {
+  const trigger =
+    appearance === "chip" ? (
+      <Button variant="secondary" size="xs" className="font-normal" />
+    ) : (
+      <Button variant="link" className="h-auto p-0 text-xs font-normal" />
+    );
   return (
     <Dialog>
-      <DialogTrigger render={<Button variant="link" className="h-auto p-0 text-xs font-normal" />}>{label}</DialogTrigger>
+      <DialogTrigger render={trigger}>
+        {appearance === "chip" && <SparklesIcon data-icon="inline-start" />}
+        {label}
+      </DialogTrigger>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>What's new in version {version}</DialogTitle>
