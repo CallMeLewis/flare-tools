@@ -207,6 +207,8 @@ export interface PublishRequest {
   /** Leave null to keep the current files. */
   contentPath: string | null;
   changeNote: string;
+  /** False sends only the files and change note, leaving the page as it is on Steam. A new item always sends it. */
+  sendPage: boolean;
 }
 
 export type PublishStage = "creating" | "preparing" | "uploadingContent" | "uploadingPreview" | "committing";

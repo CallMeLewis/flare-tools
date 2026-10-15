@@ -271,10 +271,12 @@ export function ItemEditor({
       tags: page.tags,
       visibility: page.visibility,
       previewPath: page.previewPath || null,
+      sendPage: true,
     };
   }
 
-  /** The page as Steam has it, so an upload doesn't quietly publish unsaved edits. */
+  /** The page as Steam has it, for an upload that leaves the page alone: neither publishing unsaved edits nor
+      undoing changes made to it on Steam since the list loaded. */
   function savedPage(saved: WorkshopItem): Omit<PublishRequest, "contentPath" | "changeNote"> {
     return {
       itemId: saved.id,
@@ -283,6 +285,7 @@ export function ItemEditor({
       tags: saved.tags,
       visibility: saved.visibility,
       previewPath: null,
+      sendPage: false,
     };
   }
 

@@ -174,6 +174,9 @@ pub struct PublishRequest {
     pub preview_path: Option<String>,
     pub content_path: Option<String>,
     pub change_note: String,
+    /// False sends only the files and change note, leaving the page as it is on Steam, which may have
+    /// changed since the app loaded it. A new item always sends its page.
+    pub send_page: bool,
 }
 
 #[derive(Clone, Copy, Debug, Serialize)]
@@ -479,21 +482,24 @@ impl Steam {
         request: &PublishRequest,
         mut report: impl FnMut(PublishProgress),
     ) -> Result<PublishOutcome, PublishError> {
+        let send_page = request.send_page || request.item_id.is_none();
         let title = request.title.trim();
-        if title.is_empty() {
-            return Err("Give the item a title.".into());
+        if send_page {
+            if title.is_empty() {
+                return Err("Give the item a title.".into());
+            }
+            check_text("title", title, MAX_TITLE_BYTES)?;
+            check_text("description", &request.description, MAX_DESCRIPTION_BYTES)?;
+            if request.tags.iter().any(|t| t.contains(',')) {
+                return Err("Tags can't contain commas.".into());
+            }
+            if request.tags.iter().any(|t| t.contains('\0')) {
+                return Err("A tag contains a null character.".into());
+            }
+            check_text("tag list", &request.tags.join(","), MAX_TAG_LIST_BYTES)?;
         }
-        check_text("title", title, MAX_TITLE_BYTES)?;
-        check_text("description", &request.description, MAX_DESCRIPTION_BYTES)?;
         let note = request.change_note.trim();
         check_text("change note", note, MAX_CHANGE_NOTE_BYTES)?;
-        if request.tags.iter().any(|t| t.contains(',')) {
-            return Err("Tags can't contain commas.".into());
-        }
-        if request.tags.iter().any(|t| t.contains('\0')) {
-            return Err("A tag contains a null character.".into());
-        }
-        check_text("tag list", &request.tags.join(","), MAX_TAG_LIST_BYTES)?;
         // Paths are resolved here because the steamworks crate panics on one it can't resolve.
         let content = match request.content_path.as_deref().map(str::trim) {
             Some(path) if !Path::new(path).is_dir() => return Err(format!("{path} isn't a folder.").into()),
@@ -533,12 +539,15 @@ impl Steam {
         let item_id = Some(id.0.to_string());
         let failed = |message: String| PublishError { message, item_id: created.then(|| id.0.to_string()) };
 
-        let mut update = ugc
-            .start_item_update(DAYZ, id)
-            .title(title)
-            .description(&request.description)
-            .tags(request.tags.clone(), false)
-            .visibility(request.visibility.into());
+        // Steam leaves anything not set on the update as it is.
+        let mut update = ugc.start_item_update(DAYZ, id);
+        if send_page {
+            update = update
+                .title(title)
+                .description(&request.description)
+                .tags(request.tags.clone(), false)
+                .visibility(request.visibility.into());
+        }
         if let Some(path) = &preview {
             update = update.preview_path(path);
         }
