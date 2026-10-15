@@ -301,7 +301,10 @@ impl Updater {
             if !matches!(inner.status, UpdateStatus::Ready { .. }) {
                 return inner.status.clone();
             }
-            inner.downloaded = None;
+            // The waiting update stays until its replacement has downloaded, in case that fails.
+            if replacement.is_none() {
+                inner.downloaded = None;
+            }
             inner.offered = replacement;
         }
         self.set(app, status);
@@ -362,7 +365,15 @@ impl Updater {
                     Box::pin(self.check(app)).await;
                 }
             }
-            Err(error) => self.set(app, UpdateStatus::Error { message: friendly_error(&error, self.channel(app)) }),
+            Err(error) => {
+                // A replacement that failed leaves the update downloaded before it ready to install.
+                let kept = self.inner.lock().unwrap().downloaded.as_ref().map(|(update, _)| UpdateStatus::Ready {
+                    version: update.version.clone(),
+                    notes: update.body.clone(),
+                });
+                let failed = UpdateStatus::Error { message: friendly_error(&error, self.channel(app)) };
+                self.set(app, kept.unwrap_or(failed));
+            }
         }
     }
 
