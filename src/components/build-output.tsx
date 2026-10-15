@@ -1,11 +1,11 @@
-import { useEffect, useRef } from "react";
+import { memo, useEffect, useRef } from "react";
 import { CheckIcon, ChevronRightIcon, CopyIcon, MinusIcon, XIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { DisabledHint } from "@/components/disabled-hint";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import type { BuildSession } from "@/hooks/use-build-sessions";
+import type { BuildSession, LogLine } from "@/hooks/use-build-sessions";
 import type { LogLevel, Step, StepStatus } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -104,15 +104,20 @@ export function BuildLog({ session }: { session: BuildSession }) {
       {session.log.length === 0 ? (
         <p className="text-muted-foreground">Waiting for output…</p>
       ) : (
-        session.log.map((line) => (
-          <div key={line.id} className={cn("break-all whitespace-pre-wrap", LEVEL_CLASS[line.level])}>
-            {line.level === "command" ? `> ${line.text}` : line.text}
-          </div>
-        ))
+        session.log.map((line) => <LogRow key={line.id} line={line} />)
       )}
     </div>
   );
 }
+
+/** One line of output. Lines never change once written, so a new one doesn't re-render the thousands before it. */
+const LogRow = memo(function LogRow({ line }: { line: LogLine }) {
+  return (
+    <div className={cn("break-all whitespace-pre-wrap", LEVEL_CLASS[line.level])}>
+      {line.level === "command" ? `> ${line.text}` : line.text}
+    </div>
+  );
+});
 
 export function CopyLogButton({ session }: { session: BuildSession }) {
   async function copy() {
