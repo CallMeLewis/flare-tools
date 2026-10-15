@@ -67,9 +67,10 @@ export function BuildTool({ active, settingsOpen, settingsVersion, onOpenSetting
 
   const mods = data?.mods ?? [];
   const selected = mods.find((m) => m.id === selectedId) ?? mods[0] ?? null;
-  // The open mod already shows its result, so toasts are only for builds happening out of view.
+  // The open mod already shows its result, so toasts are only for builds happening out of view, which includes
+  // every build while another tool is showing.
   const visibleIdRef = useRef<string | null>(null);
-  visibleIdRef.current = selected?.id ?? null;
+  visibleIdRef.current = active ? (selected?.id ?? null) : null;
 
   useEffect(() => {
     if (selected) localStorage.setItem(SELECTED_KEY, selected.id);
@@ -94,7 +95,9 @@ export function BuildTool({ active, settingsOpen, settingsVersion, onOpenSetting
             }
           } catch (error) {
             finish(id, null, errorMessage(error));
-            toast.error(`${name} failed to build`, { description: errorMessage(error) });
+            if (id !== visibleIdRef.current) {
+              toast.error(`${name} failed to build`, { description: errorMessage(error) });
+            }
           }
         }
       } finally {
