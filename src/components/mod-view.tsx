@@ -152,7 +152,7 @@ export function ModView({
       <header className="flex h-16 shrink-0 items-center gap-4 border-b px-6">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2.5">
-            <h1 className="truncate text-lg font-semibold" title={mod.name}>
+            <h1 className="truncate text-base font-semibold" title={mod.name}>
               {mod.name}
             </h1>
             <Badge variant="outline" className="gap-1.5 font-normal text-muted-foreground">

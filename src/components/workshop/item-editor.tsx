@@ -312,7 +312,7 @@ export function ItemEditor({
         <Thumbnail src={preview?.url ?? item?.previewUrl ?? null} className="size-9" />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2.5">
-            <h1 className="truncate text-lg font-semibold" title={title}>
+            <h1 className="truncate text-base font-semibold" title={title}>
               {title}
             </h1>
             <Badge variant="outline" className="font-normal text-muted-foreground">
@@ -368,7 +368,7 @@ export function ItemEditor({
                 </Button>
               </DisabledHint>
               <DisabledHint reason={busyHint}>
-                <Button size="lg" onClick={() => setUploadOpen(true)} disabled={locked || blocked} className="min-w-28">
+                <Button onClick={() => setUploadOpen(true)} disabled={locked || blocked} className="min-w-28">
                   <UploadCloudIcon data-icon="inline-start" />
                   Upload new version…
                 </Button>
@@ -377,7 +377,6 @@ export function ItemEditor({
           ) : (
             <DisabledHint reason={publishHint}>
               <Button
-                size="lg"
                 onClick={() => setUploadOpen(true)}
                 disabled={locked || blocked || problems.length > 0}
                 className="min-w-28"
