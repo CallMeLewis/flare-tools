@@ -51,7 +51,8 @@ script from main, so a fix to it is picked up. Once the update feed offers the v
 the feed, such as a stable release's `beta.json` after writing it failed: replacing the installer would break updates.
 To change what's shipped, release a new version.
 
-The workflow needs these repository secrets:
+The workflow needs these secrets, kept in the repository's `release` environment rather than as repository secrets.
+The environment only lets main and `v*` tags use them, so a workflow on any other branch can't read them.
 
 - `TAURI_SIGNING_PRIVATE_KEY`: the update signing key, kept at `~/.flare-tools/update-signing-key` (back it up:
   without it no further updates can be shipped). The app refuses an update whose signature or signed version doesn't

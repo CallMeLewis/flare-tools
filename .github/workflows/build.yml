@@ -92,6 +92,9 @@ jobs:
     name: Build for Windows
     runs-on: windows-latest
     timeout-minutes: 60
+    # The certificate's secrets are in the release environment, which only main and v* tags can use. Builds that
+    # don't sign, such as every push and pull request, run without it.
+    environment: ${{ inputs.sign && 'release' || '' }}
     steps:
       - uses: actions/checkout@v5
         with:
