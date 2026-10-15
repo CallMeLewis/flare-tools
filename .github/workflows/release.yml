@@ -24,8 +24,10 @@ permissions:
 env:
   TAG: ${{ inputs.tag || github.ref_name }}
 
+# One run per tag at a time. Tags don't share a group: a group keeps only its newest waiting run, so a third tag pushed
+# while one builds would silently drop the second.
 concurrency:
-  group: release
+  group: release-${{ inputs.tag || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
