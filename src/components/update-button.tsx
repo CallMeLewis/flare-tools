@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useUpdateStatus } from "@/hooks/use-update-status";
 import { api, type UpdateStatus } from "@/lib/api";
+import { timeAgo } from "@/lib/format";
 import { releaseNoteItems } from "@/lib/release-notes";
 import { cn } from "@/lib/utils";
 
@@ -22,6 +23,8 @@ function label(status: UpdateStatus): string {
       return `Restart to update to version ${status.version}`;
     case "error":
       return `${status.message} Click to try again.`;
+    case "upToDate":
+      return `Flare Tools is up to date (checked ${timeAgo(status.checkedAt)}). Click to check again.`;
     default:
       return "Check for updates";
   }
@@ -94,7 +97,7 @@ export function UpdateButton() {
       <span className="sr-only" aria-live="polite">
         {status.state === "downloading"
           ? "Downloading update"
-          : busy || status.state === "available" || status.state === "ready"
+          : busy || status.state === "available" || status.state === "ready" || status.state === "upToDate"
             ? text
             : ""}
       </span>
