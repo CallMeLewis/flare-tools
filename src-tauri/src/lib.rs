@@ -222,8 +222,9 @@ async fn build_mod(app: AppHandle, id: String) -> Result<BuildOutcome, String> {
         {
             eprintln!("Couldn't save the build record: {error}");
         }
-        if !outcome.cancelled {
-            store.update(|data| {
+        // The PBOs are built and the history saved either way, so a failed save doesn't fail the build.
+        if !outcome.cancelled
+            && let Err(error) = store.update(|data| {
                 if let Some(m) = data.mods.iter_mut().find(|m| m.id == id) {
                     m.last_build = Some(LastBuild {
                         finished_at: outcome.finished_at,
@@ -234,7 +235,9 @@ async fn build_mod(app: AppHandle, id: String) -> Result<BuildOutcome, String> {
                     });
                 }
                 Ok(())
-            })?;
+            })
+        {
+            eprintln!("Couldn't save the mod's last build: {error}");
         }
         Ok::<_, String>(outcome)
     })
