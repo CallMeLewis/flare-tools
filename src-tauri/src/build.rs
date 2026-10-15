@@ -399,6 +399,45 @@ struct LogTail {
     p_drive: PathBuf,
     /// pboProject couldn't convert a PNG to PAA.
     png_failure: Option<PngFailure>,
+    /// Files the mod refers to that pboProject couldn't find, from the summary it writes before giving up.
+    missing_files: Vec<String>,
+}
+
+/// The file in a line of pboProject's missing file summary, "missing in config.cpp : \Other\a.p3d".
+fn missing_file(line: &str) -> Option<&str> {
+    let line = line.trim();
+    if !line.get(..11)?.eq_ignore_ascii_case("missing in ") {
+        return None;
+    }
+    let (_, file) = line.split_once(" : ")?;
+    Some(file.trim()).filter(|f| !f.is_empty())
+}
+
+/// Why the build failed when pboProject couldn't find files the mod refers to. Most often they're in another
+/// mod, such as a map the mod builds on, which pboProject needs on the P: drive even though it doesn't pack it.
+fn missing_files_message(files: &[String], p_drive: &Path) -> String {
+    let mut folders: Vec<&str> = Vec::new();
+    for file in files {
+        let top = file.trim_start_matches(['\\', '/']).split(['\\', '/']).next().unwrap_or_default();
+        if !top.is_empty() && !folders.iter().any(|f| f.eq_ignore_ascii_case(top)) {
+            folders.push(top);
+        }
+    }
+    let folders: Vec<String> = folders.iter().map(|f| p_drive.join(f).to_string_lossy().into_owned()).collect();
+    let folders = match folders.as_slice() {
+        [] => String::new(),
+        [one] => one.clone(),
+        [rest @ .., last] => format!("{} and {last}", rest.join(", ")),
+    };
+    match files {
+        [file] => format!(
+            "pboProject can't find {file}, which the mod refers to. If it's part of another mod, unpack that mod into {folders} so pboProject can check it; otherwise fix the path."
+        ),
+        _ => format!(
+            "pboProject can't find {} files the mod refers to, in {folders}. If they're part of other mods, unpack those into the same folders so pboProject can check them; otherwise fix the paths. They're listed at the end of the log above.",
+            files.len()
+        ),
+    }
 }
 
 /// A PNG that Pal2PacE couldn't convert, and its size if it could be read.
@@ -448,10 +487,23 @@ fn png_size(path: &Path) -> Option<(u32, u32)> {
 impl LogTail {
     fn new(dir: PathBuf, p_drive: PathBuf) -> Self {
         let before = snapshot(&dir, "log");
-        Self { dir, before, offsets: HashMap::new(), partial: HashMap::new(), p_drive, png_failure: None }
+        Self {
+            dir,
+            before,
+            offsets: HashMap::new(),
+            partial: HashMap::new(),
+            p_drive,
+            png_failure: None,
+            missing_files: Vec::new(),
+        }
     }
 
     fn emit(&mut self, reporter: &Reporter, line: &str) {
+        if let Some(file) = missing_file(line)
+            && !self.missing_files.iter().any(|f| f.eq_ignore_ascii_case(file))
+        {
+            self.missing_files.push(file.to_string());
+        }
         if self.png_failure.is_none() && line.to_ascii_lowercase().contains("pal2pace failed") {
             // Read the size now: the build link the path goes through is removed after packing.
             self.png_failure =
@@ -637,6 +689,9 @@ fn run_pbo_project(
 
     if let Some(failure) = &tail.png_failure {
         return Err(Failure::new(Step::Pack, failure.message()));
+    }
+    if !status.success() && !tail.missing_files.is_empty() {
+        return Err(Failure::new(Step::Pack, missing_files_message(&tail.missing_files, &tail.p_drive)));
     }
     if !status.success() {
         let code = status.code().map(|c| c.to_string()).unwrap_or_else(|| "unknown".into());
@@ -1058,5 +1113,25 @@ mod tests {
         assert!(missing.message().contains("convert gone.png"));
 
         fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn explains_files_pbo_project_cannot_find() {
+        assert_eq!(missing_file(r"missing in config.cpp : \AM_Fog\sphere.p3d"), Some(r"\AM_Fog\sphere.p3d"));
+        assert_eq!(missing_file(r"\Mod\config.cpp circa Line 337: \AM_Fog\sphere.p3d"), None);
+        assert_eq!(missing_file("Missing File Summary"), None);
+
+        let p = Path::new("P:\\");
+        let one = missing_files_message(&[r"\AM_Fog\sphere.p3d".into()], p);
+        assert!(one.starts_with(r"pboProject can't find \AM_Fog\sphere.p3d, which"));
+        assert!(one.contains(r"unpack that mod into P:\AM_Fog so"));
+
+        let files = [r"\AM_Fog\a.p3d", r"\am_fog\b.p3d", r"deerisle\objects\c.p3d", r"\Other\d.paa"].map(String::from);
+        let many = missing_files_message(&files, p);
+        assert!(
+            many.starts_with(
+                r"pboProject can't find 4 files the mod refers to, in P:\AM_Fog, P:\deerisle and P:\Other."
+            )
+        );
     }
 }
