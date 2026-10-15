@@ -1,8 +1,8 @@
 # Checks the tag and the repo, builds a release, signs it and publishes it as a GitHub release, then updates the update
 # feed on R2 to point at it.
 # Runs when `pnpm release` pushes a v<version> tag. To build a tag again, run it from the Actions tab on main and enter
-# the tag: the workflow then comes from main, with any fixes, and the code from the tag. A version the update feed
-# already offers can't be built again, since that would replace the installer the feed points at.
+# the tag: the workflow and the release script then come from main, with any fixes, and the app from the tag. A version
+# the update feed already offers can't be built again, since that would replace the installer the feed points at.
 #
 # Needs the repository secrets TAURI_SIGNING_PRIVATE_KEY (the contents of the update signing key),
 # CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID for writing the feed to R2, and CERTUM_USERNAME and CERTUM_TOTP_SECRET
@@ -78,6 +78,12 @@ jobs:
         with:
           ref: ${{ env.TAG }}
           persist-credentials: false
+      # A tag built again publishes with the release script from main, so a fix to it made since the tag is used.
+      - name: Use the release scripts from main
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          git fetch --depth 1 origin "$GITHUB_SHA"
+          git checkout FETCH_HEAD -- scripts
       - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
       - uses: actions/setup-node@v5
         with:
