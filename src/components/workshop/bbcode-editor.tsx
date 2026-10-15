@@ -21,6 +21,7 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
+import { Kbd } from "@/components/ui/kbd";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Counter } from "@/components/workshop/counter";
@@ -201,7 +202,7 @@ export function BBCodeEditor({ id, label, value, onChange, disabled, max }: BBCo
                       </TooltipTrigger>
                       <TooltipContent side="bottom">
                         {action.label}
-                        {action.key && <span className="text-background/60">Ctrl {action.key.toUpperCase()}</span>}
+                        {action.key && <Kbd>Ctrl {action.key.toUpperCase()}</Kbd>}
                       </TooltipContent>
                     </Tooltip>
                   ))}
