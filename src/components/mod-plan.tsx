@@ -24,7 +24,9 @@ export function ModPlan({ inspection }: { inspection: Inspection }) {
             <li key={pbo.relDir || pbo.name} className="flex items-center gap-2.5 px-3 py-2">
               <PackageIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
               <span className="flex min-w-0 flex-col">
-                <span className="font-medium select-text">{pbo.name}.pbo</span>
+                <span className="truncate font-medium select-text" title={`${pbo.name}.pbo`}>
+                  {pbo.name}.pbo
+                </span>
                 {pbo.packedName !== pbo.name && (
                   <span className="text-xs text-muted-foreground">Renamed from {pbo.packedName}.pbo</span>
                 )}
