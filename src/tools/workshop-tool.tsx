@@ -20,6 +20,7 @@ import { ItemEditor } from "@/components/workshop/item-editor";
 import { ItemList } from "@/components/workshop/item-list";
 import {
   api,
+  createdItemId,
   errorMessage,
   onPublishProgress,
   steamUrl,
@@ -58,6 +59,9 @@ export function WorkshopTool({ active, steamOnline, onBusyChange }: WorkshopTool
   // Whether the open editor has unsaved edits, and where the user asked to go while it did.
   const [dirty, setDirty] = useState(false);
   const [pendingId, setPendingId] = useState<string | null | undefined>(undefined);
+  // The item Steam created for the new item's first publish before the rest of it failed. Publishing again
+  // finishes that item, rather than leaving it empty and creating another.
+  const [createdForNew, setCreatedForNew] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     setRefreshing(true);
@@ -99,6 +103,7 @@ export function WorkshopTool({ active, steamOnline, onBusyChange }: WorkshopTool
     setSelectedId(id);
     // The editor remounts for the new item, so nothing is dirty until it says otherwise.
     setDirty(false);
+    setCreatedForNew(null);
     if (id && id !== NEW) localStorage.setItem(SELECTED_KEY, id);
   }
 
@@ -115,11 +120,12 @@ export function WorkshopTool({ active, steamOnline, onBusyChange }: WorkshopTool
   }
 
   /** Sends a page, files or both to Steam. Resolves to whether it was accepted. */
-  async function publish(request: PublishRequest): Promise<boolean> {
-    const key = request.itemId ?? NEW;
+  async function publish(draft: PublishRequest): Promise<boolean> {
+    const key = draft.itemId ?? NEW;
+    const request = { ...draft, itemId: draft.itemId ?? createdForNew };
     const stage = !request.itemId ? "creating" : request.contentPath ? "preparing" : "committing";
     // An upload to an existing item sends the page as Steam has it, not the edits.
-    const sendsEdits = !request.itemId || !request.contentPath;
+    const sendsEdits = !draft.itemId || !draft.contentPath;
     setPublishing({ key, progress: { itemId: request.itemId, stage, processed: 0, total: 0 }, sendsEdits });
     try {
       const outcome = await api.publishItem(request);
@@ -141,9 +147,15 @@ export function WorkshopTool({ active, steamOnline, onBusyChange }: WorkshopTool
       }
       return true;
     } catch (error) {
-      toast.error(`Couldn't publish ${request.title}`, { description: errorMessage(error) });
-      // Creating can succeed before the upload fails, which leaves an item behind to pick up.
-      if (!request.itemId) await refresh();
+      const created = key === NEW ? createdItemId(error) : null;
+      toast.error(`Couldn't publish ${request.title}`, {
+        description: created
+          ? `${errorMessage(error)} Steam had already created the item, so publishing again finishes it.`
+          : errorMessage(error),
+      });
+      if (created && editorKeyRef.current === NEW) setCreatedForNew(created);
+      // The item it created shows in the list.
+      if (key === NEW) await refresh();
       return false;
     } finally {
       setPublishing(null);

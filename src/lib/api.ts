@@ -305,5 +305,16 @@ export function onBuildEvent(handler: (event: BuildEvent) => void): Promise<Unli
 export function errorMessage(error: unknown): string {
   if (typeof error === "string") return error;
   if (error instanceof Error) return error.message;
+  if (error && typeof error === "object" && "message" in error && typeof error.message === "string") {
+    return error.message;
+  }
   return "Something went wrong.";
+}
+
+/** The item a failed publish created before it failed, which trying again should finish. */
+export function createdItemId(error: unknown): string | null {
+  if (error && typeof error === "object" && "itemId" in error && typeof error.itemId === "string") {
+    return error.itemId;
+  }
+  return null;
 }

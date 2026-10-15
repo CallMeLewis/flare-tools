@@ -198,6 +198,27 @@ pub struct PublishOutcome {
     pub needs_agreement: bool,
 }
 
+/// Why publishing failed, with the item it created first if it got that far, so that trying again
+/// finishes that item rather than creating another.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PublishError {
+    pub message: String,
+    pub item_id: Option<String>,
+}
+
+impl From<String> for PublishError {
+    fn from(message: String) -> Self {
+        Self { message, item_id: None }
+    }
+}
+
+impl From<&str> for PublishError {
+    fn from(message: &str) -> Self {
+        message.to_string().into()
+    }
+}
+
 struct Connection {
     client: Client,
     /// Requests in progress. The connection isn't dropped while any are running.
@@ -413,7 +434,7 @@ impl Steam {
         &'static self,
         request: &PublishRequest,
         mut report: impl FnMut(PublishProgress),
-    ) -> Result<PublishOutcome, String> {
+    ) -> Result<PublishOutcome, PublishError> {
         let title = request.title.trim();
         if title.is_empty() {
             return Err("Give the item a title.".into());
@@ -427,7 +448,7 @@ impl Steam {
         }
         check_text("tag list", &request.tags.join(","), MAX_TAG_LIST_BYTES)?;
         let content = match request.content_path.as_deref().map(str::trim) {
-            Some(path) if !Path::new(path).is_dir() => return Err(format!("{path} isn't a folder.")),
+            Some(path) if !Path::new(path).is_dir() => return Err(format!("{path} isn't a folder.").into()),
             Some(path) => Some(Path::new(path).to_path_buf()),
             None if request.item_id.is_none() => return Err("Choose the folder to upload.".into()),
             None => None,
@@ -447,8 +468,8 @@ impl Steam {
         let ugc = session.client.ugc();
         let mut needs_agreement = false;
 
-        let id = match request.item_id.as_deref() {
-            Some(id) => parse_id(id)?,
+        let (id, created) = match request.item_id.as_deref() {
+            Some(id) => (parse_id(id)?, false),
             None => {
                 report(PublishProgress { item_id: None, stage: PublishStage::Creating, processed: 0, total: 0 });
                 let (id, agreement) = wait(|tx| {
@@ -458,10 +479,11 @@ impl Steam {
                 })?
                 .map_err(steam_error)?;
                 needs_agreement |= agreement;
-                id
+                (id, true)
             }
         };
         let item_id = Some(id.0.to_string());
+        let failed = |message: String| PublishError { message, item_id: created.then(|| id.0.to_string()) };
 
         let mut update = ugc
             .start_item_update(DAYZ, id)
@@ -485,11 +507,13 @@ impl Steam {
         let result = loop {
             match rx.recv_timeout(PROGRESS_INTERVAL) {
                 Ok(result) => break result,
-                Err(RecvTimeoutError::Disconnected) => return Err("Lost the connection to Steam.".into()),
+                Err(RecvTimeoutError::Disconnected) => return Err(failed("Lost the connection to Steam.".into())),
                 Err(RecvTimeoutError::Timeout) => {
                     waited += PROGRESS_INTERVAL;
                     if waited > UPLOAD_TIMEOUT {
-                        return Err("The upload didn't finish. Check Steam's downloads page and try again.".into());
+                        return Err(failed(
+                            "The upload didn't finish. Check Steam's downloads page and try again.".into(),
+                        ));
                     }
                     let (status, processed, total) = watch.progress();
                     let stage = match status {
@@ -502,7 +526,7 @@ impl Steam {
                 }
             }
         };
-        let (_, agreement) = result.map_err(steam_error)?;
+        let (_, agreement) = result.map_err(|e| failed(steam_error(e)))?;
         Ok(PublishOutcome { item_id: id.0.to_string(), needs_agreement: needs_agreement || agreement })
     }
 }

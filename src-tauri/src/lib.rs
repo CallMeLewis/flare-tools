@@ -19,7 +19,7 @@ use tauri::{AppHandle, Emitter, Manager, State};
 use build::{BuildControl, BuildOutcome};
 use history::{BuildRecord, LogLine};
 use inspect::Inspection;
-use steam::{PublishOutcome, PublishRequest, STEAM, SteamPresence, SteamStatus, WorkshopItem};
+use steam::{PublishError, PublishOutcome, PublishRequest, STEAM, SteamPresence, SteamStatus, WorkshopItem};
 use store::{AppData, LastBuild, ModConfig, Settings, Store, WorkshopLink};
 
 /// Stops walking a mod's files after this many when checking for changes.
@@ -321,7 +321,7 @@ async fn inspect_content(path: String) -> Result<content::ContentSummary, String
 }
 
 #[tauri::command]
-async fn publish_item(app: AppHandle, request: PublishRequest) -> Result<PublishOutcome, String> {
+async fn publish_item(app: AppHandle, request: PublishRequest) -> Result<PublishOutcome, PublishError> {
     let handle = app.clone();
     tauri::async_runtime::spawn_blocking(move || {
         let outcome = STEAM.publish(&request, |progress| {
@@ -336,7 +336,7 @@ async fn publish_item(app: AppHandle, request: PublishRequest) -> Result<Publish
         Ok(outcome)
     })
     .await
-    .map_err(|e| e.to_string())?
+    .map_err(|e| PublishError::from(e.to_string()))?
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
