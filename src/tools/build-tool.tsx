@@ -11,6 +11,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { useBuildSessions } from "@/hooks/use-build-sessions";
 import { api, errorMessage, type AppData, type ModConfig, type ModStatus } from "@/lib/api";
 import { modState, needsBuild } from "@/lib/mod-state";
+import { dialogOpen } from "@/lib/shortcuts";
 import { cn } from "@/lib/utils";
 
 const SELECTED_KEY = "selectedModId";
@@ -113,9 +114,14 @@ export function BuildTool({ active, settingsOpen, settingsVersion, onOpenSetting
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (active && e.ctrlKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "b" && selected) {
+      // The key's position, so it's Ctrl+B on any keyboard layout.
+      if (active && e.ctrlKey && !e.shiftKey && !e.altKey && e.code === "KeyB" && selected) {
         e.preventDefault();
-        if (!settingsOpen && !modDialog.open && !statuses[selected.id]?.problem) void buildMods([selected.id]);
+        // Like the Build button: not behind a dialog, nor before the mod has been checked or when it can't be built.
+        const status = statuses[selected.id];
+        if (!settingsOpen && !modDialog.open && !dialogOpen() && status && !status.problem) {
+          void buildMods([selected.id]);
+        }
       }
     };
     window.addEventListener("keydown", onKey);

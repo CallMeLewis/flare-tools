@@ -20,6 +20,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useSteamPresence } from "@/hooks/use-steam-presence";
 import { api } from "@/lib/api";
+import { dialogOpen } from "@/lib/shortcuts";
 import { useTheme } from "@/lib/theme";
 import { useUiScale } from "@/lib/ui-scale";
 import { BuildTool } from "@/tools/build-tool";
@@ -107,9 +108,12 @@ export default function App() {
   useEffect(() => {
     if (settingsOpen || !steamReady) return;
     const onKey = (e: KeyboardEvent) => {
-      if (!e.ctrlKey || e.shiftKey || e.altKey) return;
-      const index = Number.parseInt(e.key, 10) - 1;
-      if (Number.isInteger(index) && TOOLS[index]) {
+      // Not behind a dialog, where switching tools would change what's underneath it.
+      if (!e.ctrlKey || e.shiftKey || e.altKey || dialogOpen()) return;
+      // The key's position, so the number row works on any keyboard layout.
+      const digit = /^(?:Digit|Numpad)(\d)$/.exec(e.code);
+      const index = digit ? Number(digit[1]) - 1 : -1;
+      if (TOOLS[index]) {
         e.preventDefault();
         selectTool(TOOLS[index].id);
       }
