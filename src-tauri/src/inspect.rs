@@ -31,6 +31,8 @@ pub enum LinkStatus {
     Conflict,
     /// The P: drive isn't set or doesn't exist.
     NoPDrive,
+    /// The prefix isn't a folder path that could sit on the P: drive.
+    BadPrefix,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -85,6 +87,46 @@ pub struct Inspection {
 /// Normalises a prefix to `a\b\c`: backslashes, no leading or trailing separators.
 pub fn normalise_prefix(value: &str) -> String {
     value.split(['\\', '/']).map(str::trim).filter(|part| !part.is_empty()).collect::<Vec<_>>().join("\\")
+}
+
+/// Characters Windows doesn't allow in a file or folder name.
+const NOT_IN_NAMES: &[char] = &['\\', '/', ':', '*', '?', '"', '<', '>', '|'];
+
+/// Why a name can't be a file or folder name, if it can't.
+fn name_problem(name: &str) -> Option<&'static str> {
+    if name == "." || name == ".." {
+        Some("can't be . or ..")
+    } else if name.chars().any(|c| NOT_IN_NAMES.contains(&c) || c.is_control()) {
+        Some(r#"can't contain : * ? " < > |"#)
+    } else if name.ends_with('.') {
+        Some("can't end with a full stop")
+    } else {
+        None
+    }
+}
+
+/// Why a normalised prefix can't be used as a folder path on P:, if it can't. Without this, a
+/// prefix such as `D:\Mods\MyMod` or `..\Other` would point the build somewhere off the P: drive.
+pub fn prefix_problem(prefix: &str) -> Option<String> {
+    prefix.split('\\').find_map(name_problem).map(|problem| format!("The prefix {prefix} {problem}."))
+}
+
+/// Why a PBO name can't be used, if it can't.
+pub fn pbo_name_problem(name: &str) -> Option<String> {
+    let name = name.trim();
+    if name.contains(['\\', '/']) {
+        return Some("The PBO name can't contain \\ or /.".into());
+    }
+    name_problem(name).map(|problem| format!("The PBO name {problem}."))
+}
+
+/// A PBO name without its `.pbo` extension, in any case.
+fn pbo_stem(name: &str) -> &str {
+    let name = name.trim();
+    match name.len().checked_sub(4) {
+        Some(at) if name.is_char_boundary(at) && name[at..].eq_ignore_ascii_case(".pbo") => &name[..at],
+        _ => name,
+    }
 }
 
 fn is_hidden(path: &Path) -> bool {
@@ -388,9 +430,11 @@ pub fn inspect(p_drive: &str, source_path: &str, prefix_override: Option<&str>, 
         })
         .collect();
 
-    if let Some(name) = pbo_name.map(str::trim).filter(|n| !n.is_empty()) {
-        if pbos.len() == 1 {
-            pbos[0].name = name.trim_end_matches(".pbo").to_string();
+    if let Some(name) = pbo_name.map(pbo_stem).filter(|n| !n.is_empty()) {
+        if let Some(problem) = pbo_name_problem(name) {
+            warnings.push(problem);
+        } else if pbos.len() == 1 {
+            pbos[0].name = name.to_string();
         } else if pbos.len() > 1 {
             warnings.push("The PBO name is ignored because this mod has more than one PBO.".into());
         }
@@ -403,9 +447,14 @@ pub fn inspect(p_drive: &str, source_path: &str, prefix_override: Option<&str>, 
     }
 
     let p_root = Path::new(p_drive.trim());
-    let build_path = if p_drive.trim().is_empty() { PathBuf::new() } else { p_root.join(&prefix) };
+    let bad_prefix = prefix_problem(&prefix);
+    let build_path =
+        if p_drive.trim().is_empty() || bad_prefix.is_some() { PathBuf::new() } else { p_root.join(&prefix) };
     let link = if p_drive.trim().is_empty() || !p_root.exists() {
         LinkStatus::NoPDrive
+    } else if let Some(problem) = bad_prefix {
+        warnings.push(problem);
+        LinkStatus::BadPrefix
     } else if same_folder(source, &build_path) {
         LinkStatus::Direct
     } else if fs::symlink_metadata(&build_path).is_err() {
@@ -448,6 +497,35 @@ mod tests {
     fn normalises_prefixes() {
         assert_eq!(normalise_prefix(r"\KK_Krasna/gear\medical\ "), r"KK_Krasna\gear\medical");
         assert_eq!(normalise_prefix(""), "");
+    }
+
+    #[test]
+    fn rejects_prefixes_that_leave_the_p_drive() {
+        assert_eq!(prefix_problem(r"KK_Krasna\gear"), None);
+        assert!(prefix_problem(&normalise_prefix(r"D:\Mods\MyMod")).is_some());
+        assert!(prefix_problem(&normalise_prefix(r"..\Other")).is_some());
+        assert!(prefix_problem(r"MyMod\.").is_some());
+        assert!(prefix_problem("My|Mod").is_some());
+
+        let root = std::env::temp_dir().join(format!("flare-tools-prefix-{}", std::process::id()));
+        fs::create_dir_all(root.join("MyMod")).unwrap();
+        fs::write(root.join(r"MyMod\config.cpp"), "").unwrap();
+        let source = root.join("MyMod").to_string_lossy().into_owned();
+        let plan = inspect(&root.to_string_lossy(), &source, Some(r"C:\Windows"), None);
+        assert_eq!(plan.link, LinkStatus::BadPrefix);
+        assert!(plan.build_path.is_empty());
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn checks_pbo_names() {
+        assert_eq!(pbo_stem("MyMod.PBO"), "MyMod");
+        assert_eq!(pbo_stem(" MyMod.pbo "), "MyMod");
+        assert_eq!(pbo_stem("pbo"), "pbo");
+        assert_eq!(pbo_name_problem("MyMod_Data"), None);
+        assert!(pbo_name_problem(r"..\x").is_some());
+        assert!(pbo_name_problem("a:b").is_some());
+        assert!(pbo_name_problem("..").is_some());
     }
 
     #[test]

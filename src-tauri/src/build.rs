@@ -678,7 +678,7 @@ fn build_steps(
             reporter.log(Level::Info, format!("Linked {} → {} for this build", link.display(), m.source_path));
             Some(junction)
         }
-        LinkStatus::Conflict | LinkStatus::NoPDrive => {
+        LinkStatus::Conflict | LinkStatus::NoPDrive | LinkStatus::BadPrefix => {
             return Err(Failure::new(Step::Prepare, plan.warnings.last().cloned().unwrap_or_default()));
         }
     };

@@ -86,6 +86,9 @@ fn save_mod(store: State<Store>, config: ModConfig) -> Result<ModConfig, String>
     if config.output_path.is_empty() {
         return Err("Choose an output folder.".into());
     }
+    if let Some(problem) = config.pbo_name.as_deref().and_then(inspect::pbo_name_problem) {
+        return Err(problem);
+    }
     if config.name.is_empty() {
         config.name = Path::new(&config.source_path)
             .file_name()
@@ -166,7 +169,10 @@ async fn mod_statuses(store: State<'_, Store>) -> Result<Vec<ModStatus>, String>
                     inspect::inspect(&settings.p_drive, &m.source_path, m.prefix.as_deref(), m.pbo_name.as_deref());
                 let blocked = !plan.source_exists
                     || plan.pbos.is_empty()
-                    || matches!(plan.link, inspect::LinkStatus::Conflict | inspect::LinkStatus::NoPDrive);
+                    || matches!(
+                        plan.link,
+                        inspect::LinkStatus::Conflict | inspect::LinkStatus::NoPDrive | inspect::LinkStatus::BadPrefix
+                    );
                 ModStatus {
                     problem: blocked.then(|| plan.warnings.last().cloned().unwrap_or_default()),
                     version: plan

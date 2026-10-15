@@ -38,7 +38,7 @@ export interface AppData {
 }
 
 export type PrefixSource = "override" | "prefixFile" | "configPaths" | "folderName";
-export type LinkStatus = "direct" | "junction" | "conflict" | "noPDrive";
+export type LinkStatus = "direct" | "junction" | "conflict" | "noPDrive" | "badPrefix";
 
 export interface PboPlan {
   name: string;
