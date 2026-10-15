@@ -142,7 +142,10 @@ export function WorkshopTool({ active, steamOnline, onBusyChange }: WorkshopTool
       } else if (!request.itemId) {
         toast.success(`${request.title} published`);
       } else if (request.contentPath) {
-        toast.success(`${request.title} updated`, { description: "The new files are on Steam." });
+        // While the user is still on the item, the upload dialog says it's done.
+        if (editorKeyRef.current !== key) {
+          toast.success(`${request.title} updated`, { description: "The new files are on Steam." });
+        }
       } else {
         toast.success(`${request.title}'s page saved`);
       }

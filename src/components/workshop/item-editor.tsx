@@ -191,6 +191,7 @@ export function ItemEditor({
   const [page, setPage] = useState<Page>(() => pageFor(item));
   const [saving, setSaving] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [uploaded, setUploaded] = useState(false);
   const [confirmUndo, setConfirmUndo] = useState(false);
   const [trend, setTrend] = useState<keyof ItemStats>("subscriptions");
   const preview = useLocalImage(page.previewPath);
@@ -322,7 +323,14 @@ export function ItemEditor({
 
   async function upload({ contentPath, changeNote }: UploadRequest) {
     const ok = await onPublish({ ...(item ? savedPage(item) : draftPage()), contentPath, changeNote });
-    if (ok) setUploadOpen(false);
+    // A new version stays in the dialog to say it's done. A new item moves to its own page instead.
+    if (ok && item) setUploaded(true);
+    else if (ok) setUploadOpen(false);
+  }
+
+  function openUpload() {
+    setUploaded(false);
+    setUploadOpen(true);
   }
 
   const title = page.title.trim() || (isNew ? "New item" : "Untitled");
@@ -411,7 +419,7 @@ export function ItemEditor({
                 </Button>
               </DisabledHint>
               <DisabledHint reason={busyHint}>
-                <Button onClick={() => setUploadOpen(true)} disabled={locked || blocked} className="min-w-28">
+                <Button onClick={openUpload} disabled={locked || blocked} className="min-w-28">
                   <UploadCloudIcon data-icon="inline-start" />
                   Upload new version…
                 </Button>
@@ -420,7 +428,7 @@ export function ItemEditor({
           ) : (
             <DisabledHint reason={publishHint}>
               <Button
-                onClick={() => setUploadOpen(true)}
+                onClick={openUpload}
                 disabled={locked || blocked || problems.length > 0}
                 className="min-w-28"
               >
@@ -655,6 +663,7 @@ export function ItemEditor({
         title={title}
         mods={mods}
         progress={uploadOpen ? progress : null}
+        uploaded={uploaded}
         blockedReason={busyHint}
         pageDirty={!isNew && pageChanged}
         onUpload={(request) => void upload(request)}

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { CircleAlertIcon, HammerIcon, UploadCloudIcon } from "lucide-react";
+import { CircleAlertIcon, CircleCheckIcon, ExternalLinkIcon, HammerIcon, UploadCloudIcon } from "lucide-react";
 
 import { DisabledHint } from "@/components/disabled-hint";
 import { PathInput } from "@/components/path-input";
@@ -26,8 +26,9 @@ import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { Counter } from "@/components/workshop/counter";
 import { useContentSummary } from "@/hooks/use-content-summary";
-import type { ModConfig, PublishProgress, PublishStage, WorkshopItem } from "@/lib/api";
+import { workshopUrl, type ModConfig, type PublishProgress, type PublishStage, type WorkshopItem } from "@/lib/api";
 import { fileSize, timeAgo } from "@/lib/format";
+import { openLink } from "@/lib/open";
 import { LIMITS, textBytes } from "@/lib/workshop";
 
 export interface UploadRequest {
@@ -46,6 +47,8 @@ interface UploadDialogProps {
   mods: ModConfig[];
   /** Progress while this item is being published. */
   progress: PublishProgress | null;
+  /** Whether Steam has accepted the new version, which the dialog stays open to show. */
+  uploaded: boolean;
   /** Why uploading has to wait, such as another item publishing or Steam being away. */
   blockedReason: string | null;
   /** Whether the page has edits that haven't been saved, which the upload leaves alone. */
@@ -69,6 +72,7 @@ export function UploadDialog({
   title,
   mods,
   progress,
+  uploaded,
   blockedReason,
   pageDirty,
   onUpload,
@@ -101,6 +105,53 @@ export function UploadDialog({
   const hint = publishing ? null : (blockedReason ?? (problems.length > 0 ? problems[0] : null));
 
   const percent = progress && progress.total > 0 ? Math.round((progress.processed / progress.total) * 100) : null;
+
+  if (uploaded && item) {
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Uploaded a new version of {title}</DialogTitle>
+            <DialogDescription>Steam has the new files, and subscribers download them automatically.</DialogDescription>
+          </DialogHeader>
+
+          <div
+            className="flex flex-col gap-1.5 rounded-lg border border-success/30 bg-success/5 px-3 py-2.5 text-sm"
+            role="status"
+          >
+            <p className="flex items-center gap-2 font-medium">
+              <CircleCheckIcon className="size-4 text-success" aria-hidden />
+              Upload complete
+            </p>
+            <p className="truncate font-mono text-xs text-muted-foreground select-text" title={contentPath}>
+              {contentPath}
+            </p>
+            {content?.exists && (
+              <p className="text-xs text-muted-foreground tabular-nums">
+                {content.fileCount.toLocaleString("en-GB")} {content.fileCount === 1 ? "file" : "files"} ·{" "}
+                {fileSize(content.totalSize)}
+              </p>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
+              Close
+            </Button>
+            <Button
+              onClick={() => {
+                openLink(workshopUrl(item.id));
+                onOpenChange(false);
+              }}
+            >
+              <ExternalLinkIcon data-icon="inline-start" />
+              View on Steam
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   return (
     <Dialog
