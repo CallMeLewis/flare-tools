@@ -111,8 +111,14 @@ try {
   } else if (command === "release") {
     const version = checkReady();
     await waitForCi();
-    tagRelease(version);
-    console.log(`\nThe Release workflow is now building ${version}. Follow it with: gh run watch`);
+    if (tagRelease(version)) {
+      console.log(`\nThe Release workflow is now building ${version}. Follow it with: gh run watch`);
+    } else {
+      console.log(
+        `\nv${version} was already on GitHub, so pushing it started nothing. To build it again, run the Release ` +
+          "workflow from the Actions tab on main and enter the tag.",
+      );
+    }
   } else if (command === "publish") {
     await refuseLiveVersion(packageVersion());
     const release = prepare();
@@ -404,16 +410,19 @@ function ciRun(commit: string): { databaseId: number; status: string; conclusion
 }
 
 /**
- * Tags the commit v<version>, like "Release 1.0.0", and pushes the tag, which starts the Release workflow. If the tag
- * is already on GitHub, run the workflow again from the Actions tab instead.
+ * Tags the commit v<version>, like "Release 1.0.0", and pushes the tag, which starts the Release workflow. Returns
+ * false when GitHub already had the tag, so nothing started: run the workflow again from the Actions tab instead.
  */
-function tagRelease(version: string): void {
+function tagRelease(version: string): boolean {
   const tag = `v${version}`;
   if (!git(["rev-parse", "--quiet", "--verify", `${tag}^{commit}`], true)) {
     run("git", ["tag", "--annotate", tag, "--message", `Release ${version}`], envFor("github"));
   }
+  // Pushing a tag GitHub already has does nothing, and starts no workflow.
+  if (git(["ls-remote", "--tags", "origin", `refs/tags/${tag}`])) return false;
   run("git", ["push", "origin", tag], envFor("github"));
   console.log(`Tagged ${tag}`);
+  return true;
 }
 
 /** A git command's output. `allowFailure` returns "" instead of throwing, for lookups that may find nothing. */
