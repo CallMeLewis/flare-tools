@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-import type { BuildSession } from "@/hooks/use-build-sessions";
+import { MAX_LOG_LINES, type BuildSession } from "@/hooks/use-build-sessions";
 import { api, type BuildRecord } from "@/lib/api";
 
 /** A mod's saved builds, newest first. Reloads whenever `refreshKey` changes, e.g. after a build. */
@@ -43,7 +43,13 @@ export function useSavedBuild(modId: string, record: BuildRecord | null): BuildS
           running: false,
           startedAt: record.startedAt,
           steps: Object.fromEntries(record.steps.map((s) => [s.step, s.status])),
-          log: lines.map((line, id) => ({ id, ...line })),
+          // Kept to the live log's length, which is all a build shows while it runs.
+          log: [
+            ...(lines.length > MAX_LOG_LINES
+              ? [{ level: "info" as const, text: `The first ${lines.length - MAX_LOG_LINES} lines aren't shown.` }]
+              : []),
+            ...lines.slice(-MAX_LOG_LINES),
+          ].map((line, id) => ({ id, ...line })),
           outcome: {
             ok: record.ok,
             cancelled: record.cancelled,

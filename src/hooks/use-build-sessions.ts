@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { onBuildEvent, type BuildOutcome, type LogLevel, type Step, type StepStatus } from "@/lib/api";
 
 /** Keeps memory bounded when pboProject is noisy. */
-const MAX_LOG_LINES = 5000;
+export const MAX_LOG_LINES = 5000;
 
 export interface LogLine {
   id: number;
