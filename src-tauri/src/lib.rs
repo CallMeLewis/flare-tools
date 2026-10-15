@@ -273,7 +273,7 @@ async fn open_folder(path: String) -> Result<(), String> {
                 .map(Path::to_path_buf)
                 .ok_or_else(|| format!("{} doesn't exist yet.", path.display()))?
         };
-        Command::new("explorer").arg(target).spawn().map(|_| ()).map_err(|e| e.to_string())
+        without_steam_ids(Command::new("explorer").arg(target)).spawn().map(|_| ()).map_err(|e| e.to_string())
     })
     .await?
 }
@@ -286,7 +286,16 @@ fn open_url(url: String) -> Result<(), String> {
     }
     // Explorer can't take a URL with a query string (it opens Documents instead), so hand it to
     // Windows' URL handler, which opens the default browser like a clicked link.
-    Command::new("rundll32").args(["url.dll,FileProtocolHandler", &url]).spawn().map(|_| ()).map_err(|e| e.to_string())
+    without_steam_ids(Command::new("rundll32").args(["url.dll,FileProtocolHandler", &url]))
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
+/// Connecting to Steam sets SteamAppId and SteamGameId to DayZ's for this process, and anything it
+/// starts would inherit them, including Steam itself when a steam:// link opens it.
+fn without_steam_ids(command: &mut Command) -> &mut Command {
+    command.env_remove("SteamAppId").env_remove("SteamGameId")
 }
 
 /// Reads a file for the webview, which can't load local paths itself. Used for preview images.
