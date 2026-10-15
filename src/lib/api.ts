@@ -250,6 +250,8 @@ export const api = {
   getData: () => invoke<AppData>("get_data"),
   /** What went wrong reading the saved mods and settings at startup. Only returned once. */
   takeDataNotice: () => invoke<string | null>("take_data_notice"),
+  /** Lets the smoke test know the interface has drawn. Does nothing outside it. */
+  interfaceReady: () => invoke<void>("interface_ready"),
   detectTools: () => invoke<Settings>("detect_tools"),
   saveSettings: (settings: Settings) => invoke<Settings>("save_settings", { settings }),
   inspectMod: (sourcePath: string, prefix: string | null, pboName: string | null) =>

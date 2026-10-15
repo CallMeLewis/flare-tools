@@ -47,6 +47,15 @@ fn take_data_notice(store: State<Store>) -> Option<String> {
     store.take_notice()
 }
 
+/// Tells the smoke test the window has drawn its interface, by writing to the file it names in
+/// FLARE_TOOLS_SMOKE_TEST. Without that variable, which only the smoke test sets, it does nothing.
+#[tauri::command]
+fn interface_ready() {
+    if let Some(path) = std::env::var_os("FLARE_TOOLS_SMOKE_TEST") {
+        let _ = fs::write(path, "ready");
+    }
+}
+
 #[tauri::command]
 fn detect_tools() -> Settings {
     detect::detect_settings()
@@ -402,6 +411,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_data,
             take_data_notice,
+            interface_ready,
             detect_tools,
             save_settings,
             inspect_mod,

@@ -67,6 +67,7 @@ export default function App() {
     void api.takeDataNotice().then((notice) => {
       if (notice) toast.warning("Your mods and settings couldn't be read", { description: notice, duration: Infinity });
     });
+    void api.interfaceReady().catch(() => {});
   }, []);
 
   useEffect(() => {

@@ -1,13 +1,15 @@
-// Starts a built app and fails if it closes within its first seconds, so a build that compiles but crashes on start
-// never reaches users through an update. CI runs it on every build, after making the build.
+// Starts a built app and fails if it closes within its first seconds or never draws its interface, so a build that
+// compiles but crashes or comes up blank on start never reaches users through an update. CI runs it on every build,
+// after making the build. The app reports its interface has drawn by writing to the file named in
+// FLARE_TOOLS_SMOKE_TEST, which nothing but this test sets.
 //
 //   node scripts/smoke-test.ts <installer or program>
 //
 // An installer (*-setup.exe) is installed silently into a scratch folder first, which also runs the installer's hooks,
-// and the app it installed is started. Anything else is started as it is. It only proves the app stays open, not that
-// every screen works.
+// and the app it installed is started. Anything else is started as it is. It proves the app starts and draws its
+// interface, not that every screen works.
 import { spawn, spawnSync } from "node:child_process";
-import { mkdtempSync, readdirSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
 
@@ -41,9 +43,10 @@ function install(installer: string): string {
   return join(dir, programs[0]);
 }
 
-/** Starts the app, fails if it exits within SECONDS, then closes it and everything it started. */
+/** Starts the app, fails if it exits within SECONDS or hasn't drawn its interface, then closes it and all it started. */
 async function staysOpen(program: string): Promise<void> {
-  const child = spawn(program, [], { stdio: "inherit" });
+  const ready = join(mkdtempSync(join(tmpdir(), "flare-tools-ready-")), "ready");
+  const child = spawn(program, [], { stdio: "inherit", env: { ...process.env, FLARE_TOOLS_SMOKE_TEST: ready } });
   const exited = new Promise<string>((done) => {
     child.on("error", (error) => done(`couldn't be started: ${error.message}`));
     child.on("exit", (code, signal) => done(`closed after starting (${signal ?? `exit code ${code}`})`));
@@ -55,4 +58,6 @@ async function staysOpen(program: string): Promise<void> {
   console.log(`The app stayed open for ${SECONDS} seconds.`);
   spawnSync("taskkill", ["/PID", String(child.pid), "/T", "/F"], { stdio: "ignore" });
   await exited;
+  if (!existsSync(ready)) throw new Error("The app's window never drew its interface.");
+  console.log("The app drew its interface.");
 }
