@@ -10,7 +10,6 @@ import {
   MinusIcon,
   SquareIcon,
   TerminalIcon,
-  TriangleAlertIcon,
   XIcon,
 } from "lucide-react";
 
@@ -72,8 +71,7 @@ function RecordIcon({ record }: { record: BuildRecord }) {
 }
 
 /** Where a value came from, shown on hover rather than taking up a line. */
-function SourceHint({ text, warning }: { text: string; warning?: boolean }) {
-  const Icon = warning ? TriangleAlertIcon : InfoIcon;
+function SourceHint({ text }: { text: string }) {
   return (
     <Tooltip>
       <TooltipTrigger
@@ -81,14 +79,11 @@ function SourceHint({ text, warning }: { text: string; warning?: boolean }) {
           <button
             type="button"
             aria-label={text}
-            className={cn(
-              "flex size-5 shrink-0 items-center justify-center rounded-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
-              warning ? "text-warning" : "text-muted-foreground hover:text-foreground",
-            )}
+            className="flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
           />
         }
       >
-        <Icon className="size-3.5" aria-hidden />
+        <InfoIcon className="size-3.5" aria-hidden />
       </TooltipTrigger>
       <TooltipContent side="right">{text}</TooltipContent>
     </Tooltip>
@@ -123,12 +118,12 @@ export function ModView({
   }, [running]);
   const shown = viewing ? saved : session;
   const shownOutcome = shown?.outcome;
-  // mod.cpp is what gets copied into the @mod folder, so it wins when the two files disagree.
-  const version = inspection?.modCpp?.version ?? inspection?.cfgMods?.version ?? null;
-  const versionSource = inspection?.modCpp?.version ? "mod.cpp" : "config.cpp";
+  // config.cpp's version wins: the build gives it to the mod.cpp in the @mod folder.
+  const version = inspection?.cfgMods?.version ?? inspection?.modCpp?.version ?? null;
+  const versionSource = inspection?.cfgMods?.version ? "config.cpp" : "mod.cpp";
   const otherVersion =
     inspection?.modCpp?.version && inspection.cfgMods?.version && inspection.modCpp.version !== inspection.cfgMods.version
-      ? inspection.cfgMods.version
+      ? inspection.modCpp.version
       : null;
   const author = inspection?.modCpp?.author ?? inspection?.cfgMods?.author ?? null;
   const buildHint = running
@@ -204,10 +199,9 @@ export function ModView({
                   <Detail label="Version">
                     <span className="select-text">{version}</span>
                     <SourceHint
-                      warning={Boolean(otherVersion)}
                       text={
                         otherVersion
-                          ? `From ${versionSource}, but config.cpp says ${otherVersion}.`
+                          ? `From config.cpp. Your mod.cpp says ${otherVersion}${mod.copyModCpp ? ", but the built one gets this version" : ""}.`
                           : `From ${versionSource}.`
                       }
                     />
@@ -276,19 +270,24 @@ export function ModView({
                     aria-label="Sign"
                   />
                 </Field>
-                {inspection?.hasModCpp && (
-                  <Field orientation="horizontal">
-                    <FieldContent>
-                      <FieldTitle>Copy mod.cpp</FieldTitle>
-                    </FieldContent>
-                    <Switch
-                      checked={mod.copyModCpp}
-                      disabled={running}
-                      onCheckedChange={(copyModCpp) => onChange({ copyModCpp })}
-                      aria-label="Copy mod.cpp"
-                    />
-                  </Field>
-                )}
+                <Field orientation="horizontal">
+                  <FieldContent>
+                    <FieldTitle>Add mod.cpp</FieldTitle>
+                    <FieldDescription>
+                      {inspection?.hasModCpp
+                        ? inspection.cfgMods?.version
+                          ? "Copied, with config.cpp's version"
+                          : "Copied as it is"
+                        : "Written from config.cpp"}
+                    </FieldDescription>
+                  </FieldContent>
+                  <Switch
+                    checked={mod.copyModCpp}
+                    disabled={running}
+                    onCheckedChange={(copyModCpp) => onChange({ copyModCpp })}
+                    aria-label="Add mod.cpp"
+                  />
+                </Field>
               </div>
             </CardContent>
           </Card>

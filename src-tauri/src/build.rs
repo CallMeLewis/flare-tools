@@ -17,6 +17,7 @@ use tauri::{AppHandle, Emitter, Manager};
 use crate::detect;
 use crate::history::Capture;
 use crate::inspect::{self, Inspection, LinkStatus};
+use crate::mod_cpp;
 use crate::store::{ModConfig, Settings};
 
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
@@ -859,13 +860,49 @@ fn build_steps(
 
     // Finish
     reporter.step(Step::Finish, StepStatus::Running);
-    let mod_cpp = Path::new(&m.source_path).join("mod.cpp");
-    if m.copy_mod_cpp && mod_cpp.is_file() {
-        fs::copy(&mod_cpp, output.join("mod.cpp"))
-            .map_err(|e| Failure::new(Step::Finish, format!("Couldn't copy mod.cpp: {e}")))?;
-        reporter.log(Level::Info, "Copied mod.cpp");
+    if m.copy_mod_cpp {
+        add_mod_cpp(reporter, m, &output)?;
     }
     reporter.step(Step::Finish, StepStatus::Done);
+    Ok(())
+}
+
+/// Puts a mod.cpp in the `@mod` folder: the mod's own with the version from its `CfgMods` class, so the two always
+/// agree, or one written from that class if the mod hasn't got one.
+fn add_mod_cpp(reporter: &mut Reporter, m: &ModConfig, output: &Path) -> Result<(), Failure> {
+    let source = Path::new(&m.source_path).join("mod.cpp");
+    let target = output.join("mod.cpp");
+    let fail = |e: std::io::Error| Failure::new(Step::Finish, format!("Couldn't write mod.cpp: {e}"));
+    let cfg_mods = inspect::cfg_mods_fields(Path::new(&m.source_path));
+    let version = cfg_mods.iter().find(|(key, value)| key == "version" && !value.is_empty()).map(|(_, v)| v.as_str());
+
+    if !source.is_file() {
+        fs::write(&target, mod_cpp::create(&cfg_mods, &m.name)).map_err(fail)?;
+        reporter.log(
+            Level::Info,
+            if cfg_mods.is_empty() { "Wrote mod.cpp with the mod's name" } else { "Wrote mod.cpp from config.cpp" },
+        );
+        return Ok(());
+    }
+    let bytes = fs::read(&source).map_err(fail)?;
+    let updated = match (version, String::from_utf8(bytes)) {
+        (Some(version), Ok(text)) => mod_cpp::with_version(&text, version).map(|text| (version, text)),
+        (Some(_), Err(_)) => {
+            reporter.warn("mod.cpp isn't saved as UTF-8, so its version was left as it is.");
+            None
+        }
+        (None, _) => None,
+    };
+    match updated {
+        Some((version, text)) => {
+            fs::write(&target, text).map_err(fail)?;
+            reporter.log(Level::Info, format!("Copied mod.cpp, with version {version} from config.cpp"));
+        }
+        None => {
+            fs::copy(&source, &target).map_err(fail)?;
+            reporter.log(Level::Info, "Copied mod.cpp");
+        }
+    }
     Ok(())
 }
 

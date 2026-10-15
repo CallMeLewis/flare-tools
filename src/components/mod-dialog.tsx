@@ -277,15 +277,16 @@ export function ModDialog({ open, onOpenChange, settings, mod, onSaved, onRemove
             </Field>
           )}
 
-          {inspection?.hasModCpp && (
-            <Field orientation="horizontal">
-              <FieldContent>
-                <FieldTitle>Copy mod.cpp</FieldTitle>
-                <FieldDescription>Copies the mod's mod.cpp into the @mod folder.</FieldDescription>
-              </FieldContent>
-              <Switch checked={draft.copyModCpp} onCheckedChange={(copyModCpp) => update({ copyModCpp })} />
-            </Field>
-          )}
+          <Field orientation="horizontal">
+            <FieldContent>
+              <FieldTitle>Add mod.cpp</FieldTitle>
+              <FieldDescription>
+                Copies the mod's mod.cpp into the @mod folder with the version from config.cpp, or writes one from
+                config.cpp if the mod hasn't got one.
+              </FieldDescription>
+            </FieldContent>
+            <Switch checked={draft.copyModCpp} onCheckedChange={(copyModCpp) => update({ copyModCpp })} />
+          </Field>
         </FieldGroup>
 
         <DialogFooter className="sm:justify-between">

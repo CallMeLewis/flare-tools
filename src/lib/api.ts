@@ -80,7 +80,7 @@ export interface ModStatus {
   sourceExists: boolean;
   lastModified: number | null;
   problem: string | null;
-  /** The version the mod declares, from mod.cpp or failing that its CfgMods class. */
+  /** The version the mod declares, from its CfgMods class or failing that mod.cpp. */
   version: string | null;
 }
 

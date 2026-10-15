@@ -3,6 +3,7 @@ mod content;
 mod detect;
 mod history;
 mod inspect;
+mod mod_cpp;
 mod steam;
 mod store;
 mod updater;
@@ -33,7 +34,7 @@ struct ModStatus {
     last_modified: Option<u64>,
     /// Why the mod can't be built right now, if it can't.
     problem: Option<String>,
-    /// The version the mod declares, from mod.cpp or failing that its CfgMods class.
+    /// The version the mod declares, from its CfgMods class or failing that mod.cpp.
     version: Option<String>,
 }
 
@@ -185,10 +186,10 @@ async fn mod_statuses(store: State<'_, Store>) -> Result<Vec<ModStatus>, String>
                 ModStatus {
                     problem: plan.problem.clone(),
                     version: plan
-                        .mod_cpp
+                        .cfg_mods
                         .as_ref()
                         .and_then(|meta| meta.version.clone())
-                        .or_else(|| plan.cfg_mods.as_ref().and_then(|meta| meta.version.clone())),
+                        .or_else(|| plan.mod_cpp.as_ref().and_then(|meta| meta.version.clone())),
                     id: m.id.clone(),
                     source_exists: dir.is_dir(),
                     last_modified: newest.and_then(|t| t.duration_since(UNIX_EPOCH).ok()).map(|d| d.as_millis() as u64),

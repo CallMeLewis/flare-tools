@@ -278,10 +278,10 @@ fn assignments(body: &str) -> Vec<(String, String)> {
     found
 }
 
-fn meta_from(body: &str) -> Option<ModMeta> {
+fn meta_from(fields: &[(String, String)]) -> Option<ModMeta> {
     let mut meta = ModMeta::default();
-    for (key, value) in assignments(body) {
-        let value = Some(value).filter(|v| !v.is_empty());
+    for (key, value) in fields {
+        let value = Some(value.clone()).filter(|v| !v.is_empty());
         match key.as_str() {
             "name" => meta.name = value,
             "author" => meta.author = value,
@@ -294,26 +294,38 @@ fn meta_from(body: &str) -> Option<ModMeta> {
 
 fn read_mod_cpp(source: &Path) -> Option<ModMeta> {
     let text = fs::read_to_string(source.join("mod.cpp")).ok()?;
-    meta_from(&strip_comments(&text))
+    meta_from(&assignments(&strip_comments(&text)))
 }
 
-/// The mod's own class under `CfgMods`: the first one declared there.
-fn cfg_mods_meta(text: &str) -> Option<ModMeta> {
+/// The `key = value` statements in the mod's own class under `CfgMods`: the first one declared there.
+fn cfg_mods_class(text: &str) -> Option<Vec<(String, String)>> {
     let lower = text.to_ascii_lowercase();
     let at = lower.find("class cfgmods")?;
     let cfg_body = block_after(text, at)?;
     let cfg_lower = cfg_body.to_ascii_lowercase();
     let class_at = cfg_lower.find("class ")?;
-    meta_from(block_after(cfg_body, class_at)?)
+    Some(assignments(block_after(cfg_body, class_at)?))
 }
 
-fn read_cfg_mods(source: &Path) -> Option<ModMeta> {
+#[cfg(test)]
+fn cfg_mods_meta(text: &str) -> Option<ModMeta> {
+    meta_from(&cfg_mods_class(text)?)
+}
+
+/// Everything the mod's `CfgMods` class sets, with keys lower-cased, from whichever `config.cpp` declares it.
+pub fn cfg_mods_fields(source: &Path) -> Vec<(String, String)> {
     let mut configs = Vec::new();
     find_configs(source, 0, &mut configs);
     configs
         .iter()
         .filter_map(|path| fs::read_to_string(path).ok())
-        .find_map(|text| cfg_mods_meta(&strip_comments(&text)))
+        .filter_map(|text| cfg_mods_class(&strip_comments(&text)))
+        .find(|fields| meta_from(fields).is_some())
+        .unwrap_or_default()
+}
+
+fn read_cfg_mods(source: &Path) -> Option<ModMeta> {
+    meta_from(&cfg_mods_fields(source))
 }
 
 fn read_prefix_file(dir: &Path) -> Option<(String, String)> {
@@ -564,7 +576,7 @@ mod tests {
     #[test]
     fn reads_mod_cpp_fields() {
         let text = "name = \"One Life\"; // shown in the launcher\nauthor = \"Starburzts\";\nversion = \"1.1.4\";\n";
-        let meta = meta_from(&strip_comments(text)).unwrap();
+        let meta = meta_from(&assignments(&strip_comments(text))).unwrap();
         assert_eq!(meta.name.as_deref(), Some("One Life"));
         assert_eq!(meta.author.as_deref(), Some("Starburzts"));
         assert_eq!(meta.version.as_deref(), Some("1.1.4"));
