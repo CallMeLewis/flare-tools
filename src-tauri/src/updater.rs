@@ -31,6 +31,9 @@ const CHECK_INTERVAL: Duration = Duration::from_secs(6 * 60 * 60);
 const PROGRESS_INTERVAL: Duration = Duration::from_millis(250);
 /// A check that hasn't heard back by then gives up, rather than leaving the window showing it as checking.
 const CHECK_TIMEOUT: Duration = Duration::from_secs(30);
+/// A download that receives nothing for this long has stalled, after a sleep or a change of network,
+/// and gives up so it can be tried again. A slow one carries on however long it takes.
+const STALL_TIMEOUT: Duration = Duration::from_secs(60);
 const STATUS_EVENT: &str = "update:status";
 
 /// Development aid: `FLARE_TOOLS_UPDATE_TEST_URL=<url>` points a debug build at
@@ -239,6 +242,7 @@ impl Updater {
             .endpoints(vec![url])?
             .header("User-Agent", user_agent(&app.package_info().version.to_string(), channel))?
             .timeout(CHECK_TIMEOUT)
+            .configure_client(|client| client.read_timeout(STALL_TIMEOUT))
             .on_before_exit({
                 // The installer closes the app straight away, so let a build clean up first.
                 let app = app.clone();
