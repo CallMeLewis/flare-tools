@@ -23,9 +23,11 @@ import { Button } from "@/components/ui/button";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Counter } from "@/components/workshop/counter";
 import { api } from "@/lib/api";
 import { parseBBCode, type BBNode } from "@/lib/bbcode";
 import { cn } from "@/lib/utils";
+import { textBytes } from "@/lib/workshop";
 
 interface BBCodeEditorProps {
   id: string;
@@ -132,7 +134,7 @@ const SHORTCUTS = new Map(ACTIONS.flat().filter((a) => a.key).map((a) => [a.key!
 export function BBCodeEditor({ id, label, value, onChange, disabled, max }: BBCodeEditorProps) {
   const [mode, setMode] = useState<"write" | "preview">("write");
   const textarea = useRef<HTMLTextAreaElement>(null);
-  const over = value.length > max;
+  const over = textBytes(value) > max;
 
   function apply(action: Action) {
     const el = textarea.current;
@@ -153,9 +155,7 @@ export function BBCodeEditor({ id, label, value, onChange, disabled, max }: BBCo
       <div className="flex items-center justify-between gap-2">
         <FieldLabel htmlFor={id}>{label}</FieldLabel>
         <div className="flex items-center gap-3">
-          <span className={cn("text-xs tabular-nums", over ? "text-destructive" : "text-muted-foreground")}>
-            {value.length.toLocaleString("en-GB")} / {max.toLocaleString("en-GB")}
-          </span>
+          <Counter value={value} max={max} />
           <Tabs value={mode} onValueChange={(next) => setMode(next as "write" | "preview")}>
             <TabsList className="h-7">
               <TabsTrigger value="write" className="px-2 text-xs">

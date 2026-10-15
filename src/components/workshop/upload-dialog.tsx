@@ -28,7 +28,7 @@ import { Counter } from "@/components/workshop/counter";
 import { useContentSummary } from "@/hooks/use-content-summary";
 import type { ModConfig, PublishProgress, PublishStage, WorkshopItem } from "@/lib/api";
 import { fileSize, timeAgo } from "@/lib/format";
-import { LIMITS } from "@/lib/workshop";
+import { LIMITS, textBytes } from "@/lib/workshop";
 
 export interface UploadRequest {
   contentPath: string;
@@ -96,7 +96,7 @@ export function UploadDialog({
   if (!contentPath.trim()) problems.push("Choose the folder to upload.");
   else if (content && !content.exists) problems.push("The folder doesn't exist.");
   else if (content && content.fileCount === 0) problems.push("The folder is empty.");
-  if (changeNote.length > LIMITS.changeNote) problems.push("The change note is too long.");
+  if (textBytes(changeNote) > LIMITS.changeNote) problems.push("The change note is too long.");
 
   const hint = publishing ? null : (blockedReason ?? (problems.length > 0 ? problems[0] : null));
 

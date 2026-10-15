@@ -24,10 +24,17 @@ export const TAG_GROUPS: { name: string; tags: string[] }[] = [
   { name: "Meta", tags: ["Dependency", "Collection"] },
 ];
 
-/** Steam's limits, in characters (title, description) and bytes (preview). */
+/** Steam's limits, in bytes. Text is measured with textBytes. */
 export const LIMITS = {
   title: 128,
   description: 8000,
   changeNote: 8000,
   previewBytes: 1024 * 1024,
 };
+
+const encoder = new TextEncoder();
+
+/** Text's size as Steam measures it against its limits: in UTF-8, where some characters take two to four bytes. */
+export function textBytes(value: string): number {
+  return encoder.encode(value).length;
+}

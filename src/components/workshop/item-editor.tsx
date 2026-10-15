@@ -37,7 +37,7 @@ import {
 } from "@/lib/api";
 import { compactNumber, fileSize, shortDate, timeAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { LIMITS, TAG_GROUPS, VISIBILITY_DESCRIPTION, VISIBILITY_LABEL } from "@/lib/workshop";
+import { LIMITS, TAG_GROUPS, textBytes, VISIBILITY_DESCRIPTION, VISIBILITY_LABEL } from "@/lib/workshop";
 
 interface ItemEditorProps {
   /** Null while writing a new item. */
@@ -227,8 +227,8 @@ export function ItemEditor({
 
   const problems: string[] = [];
   if (!page.title.trim()) problems.push("Give the item a title.");
-  if (page.title.length > LIMITS.title) problems.push("The title is too long.");
-  if (page.description.length > LIMITS.description) problems.push("The description is too long.");
+  if (textBytes(page.title) > LIMITS.title) problems.push("The title is too long.");
+  if (textBytes(page.description) > LIMITS.description) problems.push("The description is too long.");
   if (preview && preview.size > LIMITS.previewBytes) problems.push("The preview image is over 1 MB.");
   if (isNew && !page.previewPath) problems.push("Choose a preview image.");
 
@@ -438,7 +438,7 @@ export function ItemEditor({
                         value={page.title}
                         onChange={(e) => set("title", e.target.value)}
                         disabled={locked}
-                        aria-invalid={page.title.length > LIMITS.title || undefined}
+                        aria-invalid={textBytes(page.title) > LIMITS.title || undefined}
                       />
                     </Field>
                     <Field>
