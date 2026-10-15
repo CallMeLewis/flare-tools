@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type { BuildSession } from "@/hooks/use-build-sessions";
 import { api, type BuildRecord } from "@/lib/api";
@@ -24,9 +24,15 @@ export function useBuildHistory(modId: string, refreshKey: number): BuildRecord[
 /** Loads a saved build's log and presents it the way a live session is, so the same views show it. */
 export function useSavedBuild(modId: string, record: BuildRecord | null): BuildSession | null {
   const [session, setSession] = useState<BuildSession | null>(null);
+  // Reloading the history (as it does when the window regains focus) makes new records for the same builds. The log
+  // only loads again for a different build, so it doesn't flicker and lose its scroll position.
+  const recordRef = useRef(record);
+  recordRef.current = record;
+  const recordId = record?.id ?? null;
 
   useEffect(() => {
     setSession(null);
+    const record = recordRef.current;
     if (!record) return;
     let cancelled = false;
     api
@@ -64,7 +70,7 @@ export function useSavedBuild(modId: string, record: BuildRecord | null): BuildS
     return () => {
       cancelled = true;
     };
-  }, [modId, record]);
+  }, [modId, recordId]);
 
   return session;
 }
