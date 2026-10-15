@@ -75,14 +75,14 @@ export function TrendChart({ points, label, format, className }: TrendChartProps
         >
           <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 size-full overflow-visible">
             <line x1={PAD} y1={100 - PAD} x2={100 - PAD} y2={100 - PAD} className="stroke-border" vectorEffect="non-scaling-stroke" />
-            <path d={area} className="fill-info/10" />
-            <path d={line} fill="none" className="stroke-info" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+            <path d={area} className="fill-primary/10" />
+            <path d={line} fill="none" className="stroke-primary" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
           </svg>
           {current && (
             <>
               <span className="pointer-events-none absolute top-0 bottom-0 w-px bg-foreground/30" style={{ left: `${current.at.x}%` }} />
               <span
-                className="pointer-events-none absolute size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-info ring-2 ring-card"
+                className="pointer-events-none absolute size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary ring-2 ring-card"
                 style={{ left: `${current.at.x}%`, top: `${current.at.y}%` }}
               />
               <span
