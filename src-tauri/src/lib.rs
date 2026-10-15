@@ -299,11 +299,19 @@ fn without_steam_ids(command: &mut Command) -> &mut Command {
     command.env_remove("SteamAppId").env_remove("SteamGameId")
 }
 
-/// Reads a file for the webview, which can't load local paths itself. Used for preview images.
+/// Images the window may read, which are those it offers as a Workshop preview.
+const READABLE_IMAGES: &[&str] = &["png", "jpg", "jpeg", "gif"];
+
+/// Reads an image for the webview, which can't load local paths itself. Used for preview images, and
+/// limited to them so the window can't be used to read anything else on the computer.
 #[tauri::command]
 async fn read_file(path: String) -> Result<tauri::ipc::Response, String> {
     off_main(move || {
         let path = Path::new(path.trim());
+        let image = path.extension().is_some_and(|ext| READABLE_IMAGES.iter().any(|e| ext.eq_ignore_ascii_case(e)));
+        if !image {
+            return Err("Only PNG, JPEG and GIF images can be shown.".into());
+        }
         let size = fs::metadata(path).map_err(|e| e.to_string())?.len();
         // Previews are limited to 1 MB; anything far bigger isn't worth loading.
         if size > 32 * 1024 * 1024 {
