@@ -207,10 +207,12 @@ impl Updater {
     }
 
     fn change_settings(&self, app: &AppHandle, change: impl FnOnce(&mut UpdateSettings)) -> Result<(), String> {
-        let mut settings = self.settings(app);
+        // Held throughout, so two changes at once can't both start from the old settings and lose one.
+        let mut inner = self.inner.lock().unwrap();
+        let mut settings = *inner.settings.get_or_insert_with(|| load_settings(app));
         change(&mut settings);
         save_settings(app, settings)?;
-        self.inner.lock().unwrap().settings = Some(settings);
+        inner.settings = Some(settings);
         Ok(())
     }
 
@@ -476,7 +478,11 @@ fn save_settings(app: &AppHandle, settings: UpdateSettings) -> Result<(), String
         std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
     }
     let saved = SavedSettings { settings, version: Some(app.package_info().version.to_string()) };
-    std::fs::write(path, serde_json::to_string(&saved).unwrap() + "\n").map_err(|e| e.to_string())
+    // Written whole and then swapped in, since a file cut short reads as no settings, which would turn
+    // automatic checks back on.
+    let tmp = path.with_extension("json.tmp");
+    std::fs::write(&tmp, serde_json::to_string(&saved).unwrap() + "\n").map_err(|e| e.to_string())?;
+    std::fs::rename(&tmp, &path).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
