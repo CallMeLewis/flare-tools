@@ -70,8 +70,8 @@ function RecordIcon({ record }: { record: BuildRecord }) {
   return <XIcon className="size-3.5 text-destructive" aria-hidden />;
 }
 
-/** Where a value came from, shown on hover rather than taking up a line. */
-function SourceHint({ text }: { text: string }) {
+/** Where a value came from, or what an option does, shown on hover rather than taking up a line. */
+function InfoHint({ text }: { text: string }) {
   return (
     <Tooltip>
       <TooltipTrigger
@@ -198,7 +198,7 @@ export function ModView({
                 {version && (
                   <Detail label="Version">
                     <span className="select-text">{version}</span>
-                    <SourceHint
+                    <InfoHint
                       text={
                         otherVersion
                           ? `From config.cpp. Your mod.cpp says ${otherVersion}${mod.copyModCpp ? ", but the built one gets this version" : ""}.`
@@ -218,7 +218,7 @@ export function ModView({
                       <span className="min-w-0 truncate font-mono text-xs select-text" title={inspection.prefix}>
                         {inspection.prefix}
                       </span>
-                      <SourceHint text={`Prefix ${prefixSourceLabel(inspection.prefixSource)}.`} />
+                      <InfoHint text={`Prefix ${prefixSourceLabel(inspection.prefixSource)}.`} />
                     </>
                   ) : (
                     <Spinner className="size-3.5" />
@@ -236,7 +236,10 @@ export function ModView({
               <div className="flex flex-col gap-4">
                 <Field orientation="horizontal">
                   <FieldContent>
-                    <FieldTitle>Binarise</FieldTitle>
+                    <FieldTitle className="gap-1">
+                      Binarise
+                      <InfoHint text="Has pboProject compile config.cpp into config.bin and binarise the mod's models. Turn off to pack them as they are, for example to ship configs as text." />
+                    </FieldTitle>
                     <FieldDescription>config.cpp → config.bin</FieldDescription>
                   </FieldContent>
                   <Switch
@@ -248,7 +251,10 @@ export function ModView({
                 </Field>
                 <Field orientation="horizontal">
                   <FieldContent>
-                    <FieldTitle>Convert PNGs</FieldTitle>
+                    <FieldTitle className="gap-1">
+                      Convert PNGs
+                      <InfoHint text="Has pboProject convert each PNG in the mod to PAA, the texture format DayZ uses. Turn off if the mod uses PNGs as they are, which is common in GUIs." />
+                    </FieldTitle>
                     <FieldDescription>PNG → PAA</FieldDescription>
                   </FieldContent>
                   <Switch
@@ -260,7 +266,10 @@ export function ModView({
                 </Field>
                 <Field orientation="horizontal">
                   <FieldContent>
-                    <FieldTitle>Sign</FieldTitle>
+                    <FieldTitle className="gap-1">
+                      Sign
+                      <InfoHint text="Signs each PBO with your private key, so servers that check signatures accept the mod, and puts the matching .bikey in the mod's keys folder for server owners. The default key is set in Settings > Build defaults." />
+                    </FieldTitle>
                     <FieldDescription>{keyName ? `With ${keyName}` : "No private key set"}</FieldDescription>
                   </FieldContent>
                   <Switch
@@ -272,7 +281,10 @@ export function ModView({
                 </Field>
                 <Field orientation="horizontal">
                   <FieldContent>
-                    <FieldTitle>Add mod.cpp</FieldTitle>
+                    <FieldTitle className="gap-1">
+                      Add mod.cpp
+                      <InfoHint text="Puts a mod.cpp in the @mod folder, which the DayZ launcher reads for the mod's name, picture and version. The mod's own is copied with the version from config.cpp, or one is written from config.cpp if it hasn't got one. The source folder isn't changed." />
+                    </FieldTitle>
                     <FieldDescription>
                       {inspection?.hasModCpp
                         ? inspection.cfgMods?.version
