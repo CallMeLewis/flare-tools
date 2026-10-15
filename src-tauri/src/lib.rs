@@ -383,6 +383,11 @@ pub fn run() {
             updater::set_auto_update_check,
             updater::set_update_channel,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| {
+            if let tauri::RunEvent::Exit = event {
+                build::stop(app);
+            }
+        });
 }

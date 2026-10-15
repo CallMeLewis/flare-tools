@@ -239,6 +239,11 @@ impl Updater {
             .endpoints(vec![url])?
             .header("User-Agent", user_agent(&app.package_info().version.to_string(), channel))?
             .timeout(CHECK_TIMEOUT)
+            .on_before_exit({
+                // The installer closes the app straight away, so let a build clean up first.
+                let app = app.clone();
+                move || crate::build::stop(&app)
+            })
             .build()?
             .check()
             .await?;

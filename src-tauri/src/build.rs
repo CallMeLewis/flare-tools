@@ -2,15 +2,17 @@ use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::fs::{self, File};
 use std::io::{Read, Seek, SeekFrom};
+use std::os::windows::io::AsRawHandle;
 use std::os::windows::process::CommandExt;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::{Child, Command, Stdio};
+use std::sync::OnceLock;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 
 use crate::detect;
 use crate::history::Capture;
@@ -19,12 +21,67 @@ use crate::store::{ModConfig, Settings};
 
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 const POLL_INTERVAL: Duration = Duration::from_millis(250);
+/// How long closing the app waits for a cancelled build to clean up.
+const STOP_TIMEOUT: Duration = Duration::from_secs(10);
 pub const EVENT: &str = "build-event";
 
 #[derive(Default)]
 pub struct BuildControl {
     pub running: AtomicBool,
     pub cancel: AtomicBool,
+}
+
+/// Cancels a running build and waits for it to finish cleaning up, so closing the app doesn't
+/// leave the build's link on P: behind.
+pub fn stop(app: &AppHandle) {
+    let Some(control) = app.try_state::<BuildControl>() else { return };
+    if !control.running.load(Ordering::SeqCst) {
+        return;
+    }
+    control.cancel.store(true, Ordering::SeqCst);
+    let deadline = Instant::now() + STOP_TIMEOUT;
+    while control.running.load(Ordering::SeqCst) && Instant::now() < deadline {
+        thread::sleep(Duration::from_millis(50));
+    }
+}
+
+/// Puts a tool the build started into a job that Windows ends when Flare Tools exits, however it
+/// exits, so pboProject can't carry on writing PBOs in the background after a crash.
+fn end_with_app(child: &Child) {
+    use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
+    use windows_sys::Win32::System::JobObjects::{
+        AssignProcessToJobObject, CreateJobObjectW, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+        JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JobObjectExtendedLimitInformation, SetInformationJobObject,
+    };
+
+    // The handle is never closed: Windows closes it as the process ends, which ends the job.
+    static JOB: OnceLock<Option<usize>> = OnceLock::new();
+    let job = JOB.get_or_init(|| {
+        // SAFETY: the job handle is checked before use, and the limits struct outlives the call.
+        unsafe {
+            let job = CreateJobObjectW(std::ptr::null(), std::ptr::null());
+            if job.is_null() {
+                return None;
+            }
+            let mut limits: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = std::mem::zeroed();
+            limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+            let set = SetInformationJobObject(
+                job,
+                JobObjectExtendedLimitInformation,
+                (&raw const limits).cast(),
+                size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
+            );
+            if set == 0 {
+                CloseHandle(job);
+                return None;
+            }
+            Some(job as usize)
+        }
+    });
+    if let Some(job) = *job {
+        // SAFETY: both handles are open: the job's for the life of the app, the child's while it's borrowed.
+        unsafe { AssignProcessToJobObject(job as HANDLE, child.as_raw_handle() as HANDLE) };
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -411,6 +468,7 @@ fn run_pbo_project(
     reporter.log(Level::Command, format!("pboProject {}", args.join(" ")));
 
     let mut child = cmd.spawn().map_err(|e| Failure::new(Step::Pack, format!("Couldn't start pboProject: {e}")))?;
+    end_with_app(&child);
     let status = loop {
         // Check for exit first: once pboProject has finished, a late cancel would only
         // throw away a good build and leave its PBOs unsigned.
@@ -485,15 +543,20 @@ fn sign_pbos(
     for pbo in pbos.iter_mut() {
         let pbo_path = PathBuf::from(&pbo.path);
         reporter.log(Level::Command, format!("DSSignFile {} {}", quoted(&key), quoted(&pbo_path)));
-        let result = Command::new(&ds_sign)
+        let child = Command::new(&ds_sign)
             .arg(&key)
             .arg(&pbo_path)
             .creation_flags(CREATE_NO_WINDOW)
             .env_remove("SteamAppId")
             .env_remove("SteamGameId")
             .stdin(Stdio::null())
-            .output()
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
             .map_err(|e| Failure::new(Step::Sign, format!("Couldn't start DSSignFile: {e}")))?;
+        end_with_app(&child);
+        let result =
+            child.wait_with_output().map_err(|e| Failure::new(Step::Sign, format!("Lost track of DSSignFile: {e}")))?;
         for line in
             String::from_utf8_lossy(&result.stdout).lines().chain(String::from_utf8_lossy(&result.stderr).lines())
         {
