@@ -293,10 +293,10 @@ export function workshopUrl(id: string): string {
   return `steam://url/CommunityFilePage/${id}`;
 }
 
-/** Opens a web page inside the Steam client, where the user is already signed in. */
 /** Starts the Steam client, or brings it to the front if it's already running. */
 export const OPEN_STEAM_URL = "steam://open/main";
 
+/** Opens a web page inside the Steam client, where the user is already signed in. */
 export function steamUrl(url: string): string {
   return `steam://openurl/${url}`;
 }
