@@ -31,7 +31,8 @@ These ideas come up, and the answer is no unless this document is changed first:
 - No sharing or syncing mods between people or computers. Git and the Workshop already do that.
 - No publishing anywhere other than the Steam Workshop.
 - No support for games other than DayZ.
-- No telemetry or usage tracking.
+- No telemetry or usage tracking. The update check names the app's version and update channel, as an update request
+  has to, and nothing in it identifies the user or their computer.
 - No versions for other systems. DayZ Tools, pboProject and the P: drive are Windows-only, so the app is too.
 
 ## Questions to ask of a new feature
