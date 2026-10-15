@@ -28,6 +28,7 @@ junction = "1"
 winreg = "0.55"
 steamworks = "0.13"
 tauri-plugin-updater = "2"
+tauri-plugin-single-instance = "2"
 tokio = { version = "1", features = ["time"] }
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security", "Win32_System_JobObjects", "Win32_System_Threading"] }
 
