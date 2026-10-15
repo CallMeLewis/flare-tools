@@ -23,6 +23,17 @@ import { InstallUpdateDialog } from "@/components/install-update-dialog";
 import { LicencesDialog } from "@/components/licences-dialog";
 import { PathInput } from "@/components/path-input";
 import { ReleaseNotesLink } from "@/components/release-notes";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
@@ -159,6 +170,7 @@ function SettingsBody({
   const [draft, setDraft] = useState<Settings | null>(null);
   const [exists, setExists] = useState<Partial<Record<PathKey, boolean>>>({});
   const [saving, setSaving] = useState(false);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
 
   useEffect(() => {
     void api.getData().then(({ settings }) => {
@@ -305,9 +317,29 @@ function SettingsBody({
           {(editable || dirty) && (
             <div className="flex shrink-0 items-center gap-2">
               {dirty && <span className="mr-1 text-xs text-muted-foreground">Unsaved changes</span>}
-              <Button variant="outline" onClick={() => saved && setDraft(saved)} disabled={!dirty || saving}>
-                Discard
-              </Button>
+              <AlertDialog open={confirmDiscard} onOpenChange={setConfirmDiscard}>
+                <AlertDialogTrigger render={<Button variant="outline" disabled={!dirty || saving} />}>
+                  Discard
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Discard your settings changes?</AlertDialogTitle>
+                    <AlertDialogDescription>They haven't been saved, so they'll be lost.</AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Keep editing</AlertDialogCancel>
+                    <AlertDialogAction
+                      variant="destructive"
+                      onClick={() => {
+                        setConfirmDiscard(false);
+                        if (saved) setDraft(saved);
+                      }}
+                    >
+                      Discard
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
               <Button onClick={save} disabled={!dirty || saving} className="min-w-20">
                 {saving && <Spinner data-icon="inline-start" />}
                 {saving ? "Saving…" : "Save"}

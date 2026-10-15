@@ -10,6 +10,17 @@ import {
 } from "lucide-react";
 
 import { DisabledHint } from "@/components/disabled-hint";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -180,6 +191,7 @@ export function ItemEditor({
   const [page, setPage] = useState<Page>(() => pageFor(item));
   const [saving, setSaving] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [confirmUndo, setConfirmUndo] = useState(false);
   const [trend, setTrend] = useState<keyof ItemStats>("subscriptions");
   const preview = useLocalImage(page.previewPath);
   const isNew = !item;
@@ -359,10 +371,32 @@ export function ItemEditor({
             </Button>
           )}
           {item && pageChanged && !locked && (
-            <Button variant="outline" onClick={() => setPage(pageFor(item))}>
-              <RotateCcwIcon data-icon="inline-start" />
-              Undo changes
-            </Button>
+            <AlertDialog open={confirmUndo} onOpenChange={setConfirmUndo}>
+              <AlertDialogTrigger render={<Button variant="outline" />}>
+                <RotateCcwIcon data-icon="inline-start" />
+                Undo changes
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Undo your changes to {title}?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    The page goes back to how it is on Steam, and the edits you haven't saved are lost.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Keep editing</AlertDialogCancel>
+                  <AlertDialogAction
+                    variant="destructive"
+                    onClick={() => {
+                      setConfirmUndo(false);
+                      setPage(pageFor(item));
+                    }}
+                  >
+                    Undo changes
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           )}
           {item ? (
             <>

@@ -50,6 +50,13 @@ interface ModDialogProps {
   onRemove?: () => void;
 }
 
+/** Whether two versions of a mod differ in anything the dialog edits, counting a cleared field as unset. */
+function sameMod(a: ModConfig, b: ModConfig) {
+  return (Object.keys(a) as (keyof ModConfig)[]).every(
+    (key) => key === "lastBuild" || (a[key] ?? "") === (b[key] ?? ""),
+  );
+}
+
 function blankMod(): ModConfig {
   return {
     id: "",
@@ -73,8 +80,17 @@ export function ModDialog({ open, onOpenChange, settings, mod, onSaved, onRemove
   const [nameTouched, setNameTouched] = useState(false);
   const [outputTouched, setOutputTouched] = useState(false);
   const [saving, setSaving] = useState(false);
+  // Asking whether to throw away edits, after the user tried to close the dialog.
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
   const inspection = useInspection(draft.sourcePath, draft.prefix, draft.pboName);
   const editing = Boolean(mod);
+  const dirty = !sameMod(draft, mod ?? blankMod());
+
+  /** Closes the dialog, checking first if that would throw away edits. */
+  function requestClose() {
+    if (dirty && !saving) setConfirmDiscard(true);
+    else onOpenChange(false);
+  }
 
   useEffect(() => {
     if (!open) return;
@@ -114,7 +130,7 @@ export function ModDialog({ open, onOpenChange, settings, mod, onSaved, onRemove
   const keyName = fileName(draft.privateKeyPath || settings.defaultPrivateKeyPath).replace(/\.biprivatekey$/i, "");
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(next) => (next ? onOpenChange(true) : requestClose())}>
       <DialogContent className="max-h-[calc(100vh-3rem)] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{editing ? `Edit ${mod?.name}` : "Add a mod"}</DialogTitle>
@@ -295,7 +311,7 @@ export function ModDialog({ open, onOpenChange, settings, mod, onSaved, onRemove
             )}
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
+            <Button variant="outline" onClick={requestClose}>
               Cancel
             </Button>
             <DisabledHint
@@ -315,6 +331,31 @@ export function ModDialog({ open, onOpenChange, settings, mod, onSaved, onRemove
             </DisabledHint>
           </div>
         </DialogFooter>
+
+        <AlertDialog open={confirmDiscard} onOpenChange={setConfirmDiscard}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>{editing ? `Discard your changes to ${mod?.name}?` : "Discard this mod?"}</AlertDialogTitle>
+              <AlertDialogDescription>
+                {editing
+                  ? "They haven't been saved, so closing throws them away."
+                  : "It hasn't been added yet, so closing throws it away."}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Keep editing</AlertDialogCancel>
+              <AlertDialogAction
+                variant="destructive"
+                onClick={() => {
+                  setConfirmDiscard(false);
+                  onOpenChange(false);
+                }}
+              >
+                Discard
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </DialogContent>
     </Dialog>
   );
