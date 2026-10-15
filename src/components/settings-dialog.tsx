@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { DisabledHint } from "@/components/disabled-hint";
 import { InstallUpdateDialog } from "@/components/install-update-dialog";
 import { LicencesDialog } from "@/components/licences-dialog";
 import { PathInput } from "@/components/path-input";
@@ -35,7 +36,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -274,7 +275,6 @@ function SettingsBody({
       <div className="flex w-52 shrink-0 flex-col border-r bg-sidebar p-3 text-sidebar-foreground">
         <div className="px-2 pt-2 pb-4">
           <DialogTitle className="text-base">Settings</DialogTitle>
-          <DialogDescription className="mt-0.5 text-xs">Paths save with Save. The rest applies straight away.</DialogDescription>
         </div>
         <nav aria-label="Settings sections" className="flex flex-1 flex-col gap-0.5">
           {SECTIONS.map(({ id, label, icon: Icon, pinned }) => {
@@ -314,38 +314,6 @@ function SettingsBody({
             <h2 className="truncate text-base font-semibold">{current.label}</h2>
             <p className="mt-0.5 truncate text-xs text-muted-foreground">{current.description}</p>
           </div>
-          {(editable || dirty) && (
-            <div className="flex shrink-0 items-center gap-2">
-              {dirty && <span className="mr-1 text-xs text-muted-foreground">Unsaved changes</span>}
-              <AlertDialog open={confirmDiscard} onOpenChange={setConfirmDiscard}>
-                <AlertDialogTrigger render={<Button variant="outline" disabled={!dirty || saving} />}>
-                  Discard
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Discard your settings changes?</AlertDialogTitle>
-                    <AlertDialogDescription>They haven't been saved, so they'll be lost.</AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Keep editing</AlertDialogCancel>
-                    <AlertDialogAction
-                      variant="destructive"
-                      onClick={() => {
-                        setConfirmDiscard(false);
-                        if (saved) setDraft(saved);
-                      }}
-                    >
-                      Discard
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-              <Button onClick={save} disabled={!dirty || saving} className="min-w-20">
-                {saving && <Spinner data-icon="inline-start" />}
-                {saving ? "Saving…" : "Save"}
-              </Button>
-            </div>
-          )}
         </header>
 
         <div className="min-h-0 flex-1 overflow-y-auto">
@@ -382,6 +350,47 @@ function SettingsBody({
             </div>
           )}
         </div>
+
+        {/* At the foot, like the app's other dialogs, where the fields above lead and away from the close button.
+            On the sections with fields to save, and on any other while there are changes waiting. */}
+        {(editable || dirty) && (
+          <footer className="flex shrink-0 items-center gap-2 border-t bg-muted/50 px-6 py-3">
+            <p className="flex-1 text-xs text-muted-foreground" aria-live="polite">
+              {dirty ? "Unsaved changes" : ""}
+            </p>
+            <DisabledHint reason={!dirty ? "Nothing has changed yet." : null}>
+              <AlertDialog open={confirmDiscard} onOpenChange={setConfirmDiscard}>
+                <AlertDialogTrigger render={<Button variant="outline" disabled={!dirty || saving} />}>
+                  Discard
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Discard your settings changes?</AlertDialogTitle>
+                    <AlertDialogDescription>They haven't been saved, so they'll be lost.</AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Keep editing</AlertDialogCancel>
+                    <AlertDialogAction
+                      variant="destructive"
+                      onClick={() => {
+                        setConfirmDiscard(false);
+                        if (saved) setDraft(saved);
+                      }}
+                    >
+                      Discard
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </DisabledHint>
+            <DisabledHint reason={!dirty ? "Nothing has changed yet." : null}>
+              <Button onClick={save} disabled={!dirty || saving} className="min-w-20">
+                {saving && <Spinner data-icon="inline-start" />}
+                {saving ? "Saving…" : "Save"}
+              </Button>
+            </DisabledHint>
+          </footer>
+        )}
       </div>
     </>
   );
