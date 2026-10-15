@@ -2,8 +2,9 @@
 # release script against it. Called by CI on every push and pull request, and by Release before it publishes. The
 # checks and the build run side by side, to finish sooner; Release only publishes once every one of them has passed.
 #
-# Caches are only saved from main: GitHub lets tags and pull requests read main's caches but not each other's, so main is
-# what keeps release builds warm.
+# The Rust caches are only saved from main: GitHub lets tags and pull requests read main's caches but not each other's,
+# so main is what keeps release builds warm. setup-node saves the pnpm store from any branch, which costs little since
+# each branch only reads its own and main's.
 #
 # Third-party actions are pinned to a commit, with its version as a comment, so a moved tag can't change what runs in
 # Release next to the signing key; GitHub's own actions follow their major version tags. To update a pin, take the
