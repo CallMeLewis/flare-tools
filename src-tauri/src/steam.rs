@@ -339,7 +339,7 @@ fn parse_id(id: &str) -> Result<PublishedFileId, String> {
 
 /// Checks a value the steamworks crate would otherwise panic on.
 fn check_text(label: &str, value: &str, max_bytes: usize) -> Result<(), String> {
-    if value.contains(' ') {
+    if value.contains('\0') {
         return Err(format!("The {label} contains a null character."));
     }
     if value.len() > max_bytes {
@@ -485,8 +485,11 @@ impl Steam {
         check_text("description", &request.description, MAX_DESCRIPTION_BYTES)?;
         let note = request.change_note.trim();
         check_text("change note", note, MAX_CHANGE_NOTE_BYTES)?;
-        if request.tags.iter().any(|t| t.contains(',') || t.contains(' ')) {
+        if request.tags.iter().any(|t| t.contains(',')) {
             return Err("Tags can't contain commas.".into());
+        }
+        if request.tags.iter().any(|t| t.contains('\0')) {
+            return Err("A tag contains a null character.".into());
         }
         check_text("tag list", &request.tags.join(","), MAX_TAG_LIST_BYTES)?;
         let content = match request.content_path.as_deref().map(str::trim) {
