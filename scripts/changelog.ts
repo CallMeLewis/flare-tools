@@ -22,6 +22,16 @@ export function parseChangelog(text: string): Release[] {
   return releases;
 }
 
+/**
+ * Why a version can't be released, if it can't. The update channels are stable and beta, so a pre-release has to be a
+ * beta, like 1.2.0-beta.1. Numbers have no leading zeros, which the app's version parser refuses.
+ */
+export function versionProblem(version: string): string | null {
+  const number = "(0|[1-9]\\d*)";
+  if (new RegExp(`^${number}\\.${number}\\.${number}(-beta(\\.${number})?)?$`).test(version)) return null;
+  return `${version} isn't a version Flare Tools can be released as. Use one like 1.2.0, or 1.2.0-beta.1 for a beta.`;
+}
+
 /** One version's notes, or null when the file has no section for it. */
 export function notesFor(text: string, version: string): string[] | null {
   return parseChangelog(text).find((release) => release.version === version)?.items ?? null;

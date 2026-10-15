@@ -27,7 +27,7 @@ import { homedir, tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
-import { compareVersions, notesFor } from "./changelog.ts";
+import { compareVersions, notesFor, versionProblem } from "./changelog.ts";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 // In CI the key comes from the TAURI_SIGNING_PRIVATE_KEY secret, which the Tauri CLI reads itself.
@@ -141,12 +141,8 @@ function packageVersion(): string {
 
 /** The version's release notes as "- " lines, after checking the version is one the channels can carry. */
 function releaseNotes(version: string): string {
-  const prerelease = version.split("-")[1];
-  if (prerelease && !/^beta(\.\d+)?$/.test(prerelease)) {
-    throw new Error(
-      `Version ${version}: pre-releases must be named like 1.2.0-beta.1; the channels are stable and beta.`,
-    );
-  }
+  const problem = versionProblem(version);
+  if (problem) throw new Error(problem);
   const items = notesFor(readFileSync(join(root, "CHANGELOG.md"), "utf8"), version);
   if (!items) throw new Error(`CHANGELOG.md has no "## ${version}" section.`);
   if (items.length === 0) throw new Error(`The "## ${version}" section of CHANGELOG.md has no "- " bullet points.`);
