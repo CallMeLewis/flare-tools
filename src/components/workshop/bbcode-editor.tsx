@@ -354,7 +354,7 @@ function render(nodes: BBNode[], structural: boolean): ReactNode[] {
       case "code":
       case "noparse":
         return node.tag === "code" ? (
-          <pre key={index} className="my-2 overflow-x-auto rounded bg-muted px-3 py-2 dark:bg-black/40 font-mono text-xs">
+          <pre key={index} className="my-2 overflow-x-auto rounded bg-muted px-3 py-2 dark:bg-background font-mono text-xs">
             {textOf(node.children).replace(/^\r?\n/, "")}
           </pre>
         ) : (

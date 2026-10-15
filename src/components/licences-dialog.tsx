@@ -122,7 +122,7 @@ function LicenceEntry({ name, licence, detail, link, text }: Component) {
             {showText ? "Hide licence text" : "Show licence text"}
           </Button>
           {showText && (
-            <pre className="max-h-48 overflow-auto rounded-md bg-muted/60 p-2.5 font-mono text-[11px] leading-relaxed whitespace-pre-wrap text-muted-foreground select-text dark:bg-black/30">
+            <pre className="max-h-48 overflow-auto rounded-md bg-muted/60 p-2.5 font-mono text-[11px] leading-relaxed whitespace-pre-wrap text-muted-foreground select-text dark:bg-background">
               {text}
             </pre>
           )}

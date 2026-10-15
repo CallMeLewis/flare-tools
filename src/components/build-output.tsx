@@ -87,7 +87,7 @@ export function BuildLog({ session }: { session: BuildSession }) {
       }}
       // Focusable so the log can be scrolled with the keyboard.
       tabIndex={0}
-      className="min-h-0 flex-1 overflow-auto rounded-lg border bg-muted/60 p-3 dark:bg-black/30 font-mono text-xs leading-relaxed outline-none select-text focus-visible:ring-3 focus-visible:ring-ring/50"
+      className="min-h-0 flex-1 overflow-auto rounded-lg border bg-muted/60 p-3 dark:bg-background font-mono text-xs leading-relaxed outline-none select-text focus-visible:ring-3 focus-visible:ring-ring/50"
       role="log"
       aria-live="polite"
       aria-label="Build output"

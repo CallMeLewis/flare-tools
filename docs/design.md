@@ -33,6 +33,8 @@ the `.dark` set; the class goes on `<html>`.
 | warning | Changed since last build, work in progress |
 | info | Building |
 | destructive | Failed, missing, blocked, and actions that remove things |
+| window-close | The title bar's close button on hover, in Windows' red whatever the theme |
+| overlay | A scrim over a picture, to show a control on top of it |
 
 Primary is near-black in light and near-white in dark: the app has no brand colour, so colour is kept for status.
 Status colours are the 700 steps in light (5:1 or better on white) and the lighter 400 steps in dark. Colour never

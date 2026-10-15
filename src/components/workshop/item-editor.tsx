@@ -413,8 +413,8 @@ export function ItemEditor({
                       className="group relative size-32 overflow-hidden rounded-lg border outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
                     >
                       <Thumbnail src={preview?.url ?? item?.previewUrl ?? null} className="size-full rounded-none" />
-                      <span className="absolute inset-0 flex items-center justify-center bg-black/60 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
-                        <ImageUpIcon className="size-5 text-white" aria-hidden />
+                      <span className="absolute inset-0 flex items-center justify-center bg-overlay opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+                        <ImageUpIcon className="size-5 text-overlay-foreground" aria-hidden />
                       </span>
                     </button>
                     <p

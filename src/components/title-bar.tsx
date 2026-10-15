@@ -111,7 +111,7 @@ export function TitleBar<Id extends string>({
         </button>
         <button
           type="button"
-          className={cn(WINDOW_BUTTON, "hover:bg-red-600 hover:text-white focus-visible:bg-red-600 focus-visible:text-white")}
+          className={cn(WINDOW_BUTTON, "hover:bg-window-close hover:text-window-close-foreground focus-visible:bg-window-close focus-visible:text-window-close-foreground")}
           onClick={() => void appWindow.close()}
           aria-label="Close"
         >
