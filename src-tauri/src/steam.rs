@@ -104,7 +104,7 @@ fn read_presence() -> SteamPresence {
     if user == 0 { SteamPresence::SignedOut } else { SteamPresence::SignedIn }
 }
 
-fn process_running(pid: u32) -> bool {
+pub(crate) fn process_running(pid: u32) -> bool {
     use windows_sys::Win32::Foundation::{CloseHandle, ERROR_ACCESS_DENIED, GetLastError, STILL_ACTIVE};
     use windows_sys::Win32::System::Threading::{GetExitCodeProcess, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION};
 

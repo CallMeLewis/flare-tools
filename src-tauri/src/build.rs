@@ -29,6 +29,8 @@ pub const EVENT: &str = "build-event";
 pub struct BuildControl {
     pub running: AtomicBool,
     pub cancel: AtomicBool,
+    /// Where each build's link on P: is recorded while it exists, to remove after a crash.
+    pub links: PathBuf,
 }
 
 /// Cancels a running build and waits for it to finish cleaning up, so closing the app doesn't
@@ -225,11 +227,24 @@ fn quoted(path: &Path) -> String {
 struct TempJunction {
     link: PathBuf,
     created_dirs: Vec<PathBuf>,
+    /// The record of this link, kept until it's removed.
+    record: Option<PathBuf>,
+}
+
+/// A build's link on P:, written down before it's made so that a crash can't leave it behind for
+/// good: the next start removes it.
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct LinkRecord {
+    /// The app that made it, which may still be building with it.
+    pid: u32,
+    link: PathBuf,
+    target: PathBuf,
+    created_dirs: Vec<PathBuf>,
 }
 
 impl TempJunction {
-    fn create(link: &Path, target: &Path) -> Result<Self, String> {
-        let mut created_dirs = Vec::new();
+    fn create(link: &Path, target: &Path, records: &Path) -> Result<Self, String> {
         // Nested prefixes (a\b) need their parent folders on P: first.
         let mut missing = Vec::new();
         let mut parent = link.parent();
@@ -240,17 +255,31 @@ impl TempJunction {
             missing.push(dir.to_path_buf());
             parent = dir.parent();
         }
-        for dir in missing.into_iter().rev() {
-            fs::create_dir(&dir).map_err(|e| format!("Couldn't create {}: {e}", dir.display()))?;
-            created_dirs.push(dir);
-        }
+        missing.reverse();
         let target = std::path::absolute(target).map_err(|e| format!("Couldn't resolve {}: {e}", target.display()))?;
-        if let Err(e) = junction::create(&target, link) {
-            let cleanup = Self { link: PathBuf::new(), created_dirs };
-            drop(cleanup);
-            return Err(format!("Couldn't create a junction at {}: {e}", link.display()));
+
+        let record = (!records.as_os_str().is_empty()).then(|| records.join(format!("{}.json", std::process::id())));
+        if let Some(record) = &record {
+            let entry = LinkRecord {
+                pid: std::process::id(),
+                link: link.to_path_buf(),
+                target: target.clone(),
+                created_dirs: missing.clone(),
+            };
+            fs::create_dir_all(records)
+                .and_then(|()| fs::write(record, serde_json::to_vec(&entry).unwrap_or_default()))
+                .map_err(|e| format!("Couldn't record the link at {}: {e}", link.display()))?;
         }
-        Ok(Self { link: link.to_path_buf(), created_dirs })
+        // From here, dropping the junction cleans up whatever has been made so far.
+        let mut junction = Self { link: PathBuf::new(), created_dirs: Vec::new(), record };
+        for dir in missing {
+            fs::create_dir(&dir).map_err(|e| format!("Couldn't create {}: {e}", dir.display()))?;
+            junction.created_dirs.push(dir);
+        }
+        junction::create(&target, link)
+            .map_err(|e| format!("Couldn't create a junction at {}: {e}", link.display()))?;
+        junction.link = link.to_path_buf();
+        Ok(junction)
     }
 }
 
@@ -266,6 +295,42 @@ impl Drop for TempJunction {
         for dir in self.created_dirs.iter().rev() {
             let _ = fs::remove_dir(dir);
         }
+        if let Some(record) = &self.record {
+            let _ = fs::remove_file(record);
+        }
+    }
+}
+
+/// Whether `link` is still a junction to `target`, rather than something put in its place since.
+fn links_to(link: &Path, target: &Path) -> bool {
+    fn plain(path: &Path) -> String {
+        let text = path.to_string_lossy();
+        text.strip_prefix(r"\\?\").unwrap_or(&text).trim_end_matches('\\').to_lowercase()
+    }
+    fs::symlink_metadata(link).is_ok_and(|m| m.file_type().is_symlink())
+        && fs::read_link(link).is_ok_and(|found| plain(&found) == plain(target))
+}
+
+/// Removes links on P: left by builds that never finished, because the app crashed or was ended.
+pub fn remove_leftover_links(records: &Path) {
+    let Ok(entries) = fs::read_dir(records) else { return };
+    for path in entries.flatten().map(|e| e.path()) {
+        let Some(record) = fs::read(&path).ok().and_then(|bytes| serde_json::from_slice::<LinkRecord>(&bytes).ok())
+        else {
+            let _ = fs::remove_file(&path);
+            continue;
+        };
+        if record.pid != std::process::id() && crate::steam::process_running(record.pid) {
+            continue;
+        }
+        if links_to(&record.link, &record.target) && fs::remove_dir(&record.link).is_err() {
+            // Try again next time rather than forget it.
+            continue;
+        }
+        for dir in record.created_dirs.iter().rev() {
+            let _ = fs::remove_dir(dir);
+        }
+        let _ = fs::remove_file(&path);
     }
 }
 
@@ -608,8 +673,8 @@ fn build_steps(
         LinkStatus::Direct => None,
         LinkStatus::Junction => {
             let link = PathBuf::from(&plan.build_path);
-            let junction =
-                TempJunction::create(&link, Path::new(&m.source_path)).map_err(|e| Failure::new(Step::Prepare, e))?;
+            let junction = TempJunction::create(&link, Path::new(&m.source_path), &control.links)
+                .map_err(|e| Failure::new(Step::Prepare, e))?;
             reporter.log(Level::Info, format!("Linked {} → {} for this build", link.display(), m.source_path));
             Some(junction)
         }
@@ -765,6 +830,46 @@ mod tests {
         bytes.extend_from_slice(&width.to_be_bytes());
         bytes.extend_from_slice(&height.to_be_bytes());
         bytes
+    }
+
+    #[test]
+    fn removes_a_link_left_by_a_build_that_never_finished() {
+        let root = std::env::temp_dir().join(format!("flare-tools-link-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        let source = root.join("source");
+        fs::create_dir_all(&source).unwrap();
+        fs::write(source.join("config.cpp"), "").unwrap();
+        let records = root.join("links");
+        let link = root.join(r"P\Nested\MyMod");
+
+        // A crash skips the junction's cleanup, which forgetting it stands in for here.
+        std::mem::forget(TempJunction::create(&link, &source, &records).unwrap());
+        assert!(link.join("config.cpp").is_file());
+        // The record names this process, which counts as not building any more.
+        remove_leftover_links(&records);
+
+        assert!(!link.exists() && !root.join(r"P\Nested").exists());
+        assert!(source.join("config.cpp").is_file());
+        assert_eq!(fs::read_dir(&records).unwrap().count(), 0);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn leaves_a_folder_that_replaced_the_link() {
+        let root = std::env::temp_dir().join(format!("flare-tools-replaced-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        let source = root.join("source");
+        fs::create_dir_all(&source).unwrap();
+        let records = root.join("links");
+        let link = root.join("MyMod");
+
+        std::mem::forget(TempJunction::create(&link, &source, &records).unwrap());
+        fs::remove_dir(&link).unwrap();
+        fs::create_dir(&link).unwrap();
+        remove_leftover_links(&records);
+
+        assert!(link.is_dir());
+        fs::remove_dir_all(root).unwrap();
     }
 
     #[test]

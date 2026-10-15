@@ -349,7 +349,9 @@ pub fn run() {
             let path = app.path().app_config_dir()?.join("data.json");
             app.manage(Store::load(path));
             app.manage(history::Dir(app.path().app_config_dir()?.join("builds")));
-            app.manage(BuildControl::default());
+            let links = app.path().app_config_dir()?.join("build-links");
+            build::remove_leftover_links(&links);
+            app.manage(BuildControl { links, ..Default::default() });
             updater::Updater::start(app.handle());
             Ok(())
         })
