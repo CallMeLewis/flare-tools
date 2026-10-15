@@ -26,6 +26,8 @@ const PROGRESS_INTERVAL: Duration = Duration::from_millis(250);
 const UPLOAD_TIMEOUT: Duration = Duration::from_secs(4 * 60 * 60);
 /// Disconnects from Steam after this long without a request, so Steam stops showing DayZ as running.
 const IDLE_DISCONNECT: Duration = Duration::from_secs(90);
+/// How often a wait on Steam checks it's still running and signed in.
+const ALIVE_INTERVAL: Duration = Duration::from_secs(1);
 /// Steam's limits. The steamworks crate panics if Steam rejects a value, so they're checked first.
 const MAX_PREVIEW_BYTES: u64 = 1024 * 1024;
 const MAX_TITLE_BYTES: usize = 128;
@@ -284,11 +286,51 @@ fn steam_error(error: SteamError) -> String {
     }
 }
 
+/// Notices Steam closing or signing out during a wait. Its answer would never come then, so the wait
+/// ends instead of running on to its timeout.
+struct AliveCheck {
+    last: Instant,
+    /// Readings in a row that found Steam gone. It takes two, so a moment's blip doesn't end an upload.
+    misses: u8,
+}
+
+impl AliveCheck {
+    fn new() -> Self {
+        Self { last: Instant::now(), misses: 0 }
+    }
+
+    fn check(&mut self) -> Result<(), String> {
+        if self.last.elapsed() < ALIVE_INTERVAL {
+            return Ok(());
+        }
+        self.last = Instant::now();
+        match read_presence() {
+            SteamPresence::SignedIn => self.misses = 0,
+            _ if self.misses == 0 => self.misses = 1,
+            SteamPresence::SignedOut => {
+                return Err("Steam signed out before it finished. Sign in and try again.".into());
+            }
+            SteamPresence::NotRunning => {
+                return Err("Steam closed before it finished. Start Steam and try again.".into());
+            }
+        }
+        Ok(())
+    }
+}
+
 /// Waits for a Steam call result, which arrives on the callback thread.
 fn wait<T: Send + 'static>(start: impl FnOnce(Sender<T>)) -> Result<T, String> {
     let (tx, rx) = mpsc::channel();
     start(tx);
-    rx.recv_timeout(REQUEST_TIMEOUT).map_err(|_| "Steam didn't respond in time. Try again.".to_string())
+    let started = Instant::now();
+    let mut alive = AliveCheck::new();
+    loop {
+        match rx.recv_timeout(ALIVE_INTERVAL) {
+            Ok(result) => return Ok(result),
+            Err(RecvTimeoutError::Timeout) if started.elapsed() < REQUEST_TIMEOUT => alive.check()?,
+            Err(_) => return Err("Steam didn't respond in time. Try again.".into()),
+        }
+    }
 }
 
 fn parse_id(id: &str) -> Result<PublishedFileId, String> {
@@ -504,6 +546,7 @@ impl Steam {
         });
 
         let mut waited = Duration::ZERO;
+        let mut alive = AliveCheck::new();
         let result = loop {
             match rx.recv_timeout(PROGRESS_INTERVAL) {
                 Ok(result) => break result,
@@ -515,6 +558,7 @@ impl Steam {
                             "The upload didn't finish. Check Steam's downloads page and try again.".into(),
                         ));
                     }
+                    alive.check().map_err(failed)?;
                     let (status, processed, total) = watch.progress();
                     let stage = match status {
                         UpdateStatus::UploadingContent => PublishStage::UploadingContent,
