@@ -2,6 +2,14 @@
 
 What changed in each version of Flare Tools, newest first.
 
+## 0.3.0 - 2026-10-15
+
+- New: building a mod that hasn't got a mod.cpp now writes one into the @mod folder from config.cpp, so the DayZ launcher shows its name and version; turn off Add mod.cpp on the mod to skip it.
+- When pboProject stops because it can't find files the mod refers to, such as models from a map the mod builds on, the build now names the files and the P: drive folders they belong in, instead of only pointing at the log.
+- After you upload a new version of a Workshop item, the upload window now says it's done and offers View on Steam.
+- Each build option on a mod's page now has an info icon that explains what it does.
+- Copy mod.cpp is now called Add mod.cpp and sets the version in the copied mod.cpp to the one in config.cpp, which is also the version the mod's page now shows.
+
 ## 0.2.0 - 2026-10-15
 
 - Closing Flare Tools or installing an update during a build now stops the build cleanly, and if Flare Tools ever closes unexpectedly, the temporary link it made on the P: drive is removed the next time it starts.
