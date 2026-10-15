@@ -195,17 +195,22 @@ export function ModDialog({ open, onOpenChange, settings, mod, onSaved, onRemove
 
           {inspection?.sourceExists && <ModPlan inspection={inspection} />}
 
-          {singlePbo && (
+          {/* Also while a name is set, so one left over from when the mod made one PBO can be cleared. */}
+          {(singlePbo || draft.pboName) && (
             <Field>
               <FieldLabel htmlFor="pboName">PBO name</FieldLabel>
               <Input
                 id="pboName"
                 value={draft.pboName ?? ""}
                 onChange={(e) => update({ pboName: e.target.value })}
-                placeholder={inspection?.pbos[0]?.name}
+                placeholder={singlePbo ? inspection?.pbos[0]?.name : undefined}
                 spellCheck={false}
               />
-              <FieldDescription>Optional. Renames the PBO without changing its prefix.</FieldDescription>
+              <FieldDescription>
+                {singlePbo
+                  ? "Optional. Renames the PBO without changing its prefix."
+                  : "Only used when the mod makes one PBO. Clear it if you don't need it."}
+              </FieldDescription>
             </Field>
           )}
 

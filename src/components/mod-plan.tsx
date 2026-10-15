@@ -1,6 +1,7 @@
 import { CircleAlertIcon, Link2Icon, PackageIcon } from "lucide-react";
 
 import type { Inspection, PrefixSource } from "@/lib/api";
+import { cn } from "@/lib/utils";
 
 const SOURCE_LABELS: Record<PrefixSource, string> = {
   override: "set manually",
@@ -44,8 +45,15 @@ export function ModPlan({ inspection }: { inspection: Inspection }) {
           </span>
         </p>
       )}
+      {/* Red for what stops the build, amber for what only needs a look. */}
       {inspection.warnings.map((warning) => (
-        <p key={warning} className="flex items-start gap-2 text-xs text-destructive">
+        <p
+          key={warning}
+          className={cn(
+            "flex items-start gap-2 text-xs",
+            warning === inspection.problem ? "text-destructive" : "text-warning",
+          )}
+        >
           <CircleAlertIcon className="mt-px size-3.5 shrink-0" aria-hidden />
           <span>{warning}</span>
         </p>
