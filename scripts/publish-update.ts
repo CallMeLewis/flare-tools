@@ -98,6 +98,7 @@ try {
     tagRelease(version);
     console.log(`\nThe Release workflow is now building ${version}. Follow it with: gh run watch`);
   } else if (command === "publish") {
+    await refuseLiveVersion(packageVersion());
     const release = prepare();
     await publishRelease(release);
     await publishFeed(release);
@@ -220,8 +221,24 @@ function manifest(release: Release, baseUrl: string) {
 }
 
 /**
+ * Refuses to publish a version again once the feed offers it. A rebuilt installer has a new signature, so replacing the
+ * one on GitHub would break updates for everyone the feed sends to it until the feed caught up, and for good if writing
+ * the feed then failed.
+ */
+async function refuseLiveVersion(version: string): Promise<void> {
+  for (const name of ["latest.json", "beta.json"]) {
+    if ((await publishedVersion(name)) === version) {
+      throw new Error(
+        `${version} is already on the update feed (${feedUrl}${name}), and building it again would replace the ` +
+          "installer the feed points at. Release a new version instead.",
+      );
+    }
+  }
+}
+
+/**
  * The GitHub release v<version> with every build, made as a draft and only published once all of them are attached.
- * Running it again for the same version replaces the builds.
+ * Running it again for the same version, before the feed offers it, replaces the builds.
  */
 async function publishRelease(release: Release): Promise<void> {
   const tag = `v${release.version}`;

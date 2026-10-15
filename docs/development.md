@@ -46,7 +46,9 @@ taken back once it's released. A beta takes the number of the release it leads t
    tag, which starts the Release workflow (`.github/workflows/release.yml`). That builds and signs the installer,
    publishes the GitHub release, then updates the feed.
 
-To build a tag again, run the Release workflow from the Actions tab on main and enter the tag.
+To build a tag again, run the Release workflow from the Actions tab on main and enter the tag. That only works until
+the update feed offers the version: after that, replacing its installer would break updates, so release a new version
+instead.
 
 The workflow needs these repository secrets:
 
