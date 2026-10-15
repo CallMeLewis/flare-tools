@@ -522,17 +522,34 @@ fn emit_log_line(reporter: &Reporter, line: &str) {
     if line.trim().is_empty() {
         return;
     }
-    let lower = line.to_ascii_lowercase();
-    let level = if lower.contains("error") || lower.contains("failed") {
+    reporter.log(line_level(line), line);
+}
+
+/// How a line of pboProject's or DSSignFile's output is shown. Only whole words count, so a script
+/// such as ErrorHandler.c isn't shown as an error, and nor is any line pboProject prints while it
+/// loads a script, whatever the script is called.
+fn line_level(line: &str) -> Level {
+    let lower = line.trim().to_ascii_lowercase();
+    if lower.ends_with(":loading...") {
+        Level::Output
+    } else if has_word(&lower, "error") || has_word(&lower, "failed") {
         Level::Error
-    } else if lower.contains("warning") {
+    } else if has_word(&lower, "warning") {
         Level::Warning
-    } else if lower.trim() == "success" {
+    } else if lower == "success" {
         Level::Success
     } else {
         Level::Output
-    };
-    reporter.log(level, line);
+    }
+}
+
+/// Whether `word` appears in `text` on its own rather than as part of a longer name.
+fn has_word(text: &str, word: &str) -> bool {
+    let part_of_word = |c: char| c.is_alphanumeric() || c == '_';
+    text.match_indices(word).any(|(at, _)| {
+        !text[..at].chars().next_back().is_some_and(part_of_word)
+            && !text[at + word.len()..].chars().next().is_some_and(part_of_word)
+    })
 }
 
 fn kill_tree(pid: u32) {
@@ -911,6 +928,20 @@ mod tests {
         assert!(source.join("config.cpp").is_file());
         assert_eq!(fs::read_dir(&records).unwrap().count(), 0);
         fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn colours_whole_words_only() {
+        // From real pboProject logs.
+        assert!(matches!(line_level(r"\KK_Map\customassets\Spool\spool.p3d DeP3d:Generic Error"), Level::Error));
+        assert!(matches!(line_level("preprocessing files produced an error"), Level::Error));
+        assert!(matches!(line_level(r"Pal2Pace failed \Mod\a.png \Mod\a.paa"), Level::Error));
+        assert!(matches!(line_level("Warning: Terrain grid 12.5 will be too slow, should use 30.0"), Level::Warning));
+        assert!(matches!(line_level("success"), Level::Success));
+        assert!(matches!(line_level(r"Scripts\3_Game\Core\ErrorHandler.c:loading..."), Level::Output));
+        assert!(matches!(line_level(r"Scripts\4_World\error.c:loading..."), Level::Output));
+        assert!(matches!(line_level("0 errors, 0 warnings"), Level::Output));
+        assert!(matches!(line_level("cfgPatches.Mod.ammo[]= has been altered"), Level::Output));
     }
 
     #[test]
