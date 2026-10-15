@@ -3,6 +3,7 @@ import { HammerIcon, PlusIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { SidebarFooter } from "@/components/sidebar-footer";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { BuildSession } from "@/hooks/use-build-sessions";
 import type { ModConfig, ModStatus } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -36,9 +37,12 @@ export function ModList({
     <aside className="flex w-76 shrink-0 flex-col border-r bg-sidebar text-sidebar-foreground">
       <div className="flex h-16 shrink-0 items-center justify-between border-b px-3">
         <span className="text-sm font-semibold">Mods</span>
-        <Button variant="ghost" size="icon-sm" onClick={onAdd} aria-label="Add a mod">
-          <PlusIcon />
-        </Button>
+        <Tooltip>
+          <TooltipTrigger render={<Button variant="ghost" size="icon-sm" onClick={onAdd} aria-label="Add a mod" />}>
+            <PlusIcon />
+          </TooltipTrigger>
+          <TooltipContent side="bottom">Add a mod</TooltipContent>
+        </Tooltip>
       </div>
 
       <nav aria-label="Mods" className="flex-1 overflow-y-auto p-2">

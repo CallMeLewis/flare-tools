@@ -1,8 +1,10 @@
 import { ImageIcon, PlusIcon, RefreshCwIcon } from "lucide-react";
 
+import { DisabledHint } from "@/components/disabled-hint";
 import { SidebarFooter } from "@/components/sidebar-footer";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { SteamStatus, WorkshopItem } from "@/lib/api";
 import { timeAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -35,24 +37,51 @@ export function Thumbnail({ src, className }: { src: string | null; className?: 
 
 export function ItemList({ steam, items, selectedId, onSelect, onNew, onRefresh, refreshing, offline }: ItemListProps) {
   const ready = steam?.state === "ready";
+  // Why the buttons that need Steam can't be used, when they can't.
+  const steamHint = !steam
+    ? "Connecting to Steam…"
+    : offline
+      ? "Steam isn't connected."
+      : !ready
+        ? "Can't reach Steam."
+        : null;
 
   return (
     <aside className="flex w-76 shrink-0 flex-col border-r bg-sidebar text-sidebar-foreground">
       <div className="flex h-16 shrink-0 items-center justify-between gap-1 border-b px-3">
         <span className="text-sm font-semibold">Workshop items</span>
         <div className="flex">
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={onRefresh}
-            disabled={!steam || refreshing || offline}
-            aria-label="Refresh from Steam"
-          >
-            <RefreshCwIcon className={cn(refreshing && "animate-spin motion-reduce:animate-none")} />
-          </Button>
-          <Button variant="ghost" size="icon-sm" onClick={onNew} disabled={!ready} aria-label="New Workshop item">
-            <PlusIcon />
-          </Button>
+          {/* Refresh stays available when Steam can't be reached, since it's how to try again. */}
+          <DisabledHint reason={!refreshing && (!steam || offline) ? steamHint : null}>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={onRefresh}
+                    disabled={!steam || refreshing || offline}
+                    aria-label="Refresh from Steam"
+                  />
+                }
+              >
+                <RefreshCwIcon className={cn(refreshing && "animate-spin motion-reduce:animate-none")} />
+              </TooltipTrigger>
+              <TooltipContent side="bottom">Refresh from Steam</TooltipContent>
+            </Tooltip>
+          </DisabledHint>
+          <DisabledHint reason={ready ? null : steamHint}>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button variant="ghost" size="icon-sm" onClick={onNew} disabled={!ready} aria-label="New Workshop item" />
+                }
+              >
+                <PlusIcon />
+              </TooltipTrigger>
+              <TooltipContent side="bottom">New Workshop item</TooltipContent>
+            </Tooltip>
+          </DisabledHint>
         </div>
       </div>
 

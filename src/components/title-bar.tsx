@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import { CopyIcon, MinusIcon, SquareIcon, XIcon } from "lucide-react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -35,6 +35,30 @@ function useMaximised() {
 
 const WINDOW_BUTTON =
   "flex h-full w-12 items-center justify-center text-muted-foreground outline-none transition-colors hover:bg-foreground/10 hover:text-foreground focus-visible:bg-foreground/10 focus-visible:text-foreground [&_svg]:size-4";
+
+/** One of the minimise, maximise and close buttons, named on hover as Windows' own are. */
+function WindowButton({
+  label,
+  onClick,
+  className,
+  children,
+}: {
+  label: string;
+  onClick: () => void;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={<button type="button" className={cn(WINDOW_BUTTON, className)} onClick={onClick} aria-label={label} />}
+      >
+        {children}
+      </TooltipTrigger>
+      <TooltipContent side="bottom">{label}</TooltipContent>
+    </Tooltip>
+  );
+}
 
 /** The window's title bar: the app's tools and the window buttons, in place of Windows' own. */
 export function TitleBar<Id extends string>({
@@ -94,29 +118,20 @@ export function TitleBar<Id extends string>({
 
       <div data-tauri-drag-region className="h-full flex-1" />
 
-      <div className="flex h-full items-center gap-1 pr-2">
-      </div>
-
       <div className="flex h-full border-l">
-        <button type="button" className={WINDOW_BUTTON} onClick={() => void appWindow.minimize()} aria-label="Minimise">
+        <WindowButton label="Minimise" onClick={() => void appWindow.minimize()}>
           <MinusIcon />
-        </button>
-        <button
-          type="button"
-          className={WINDOW_BUTTON}
-          onClick={() => void appWindow.toggleMaximize()}
-          aria-label={maximised ? "Restore" : "Maximise"}
-        >
+        </WindowButton>
+        <WindowButton label={maximised ? "Restore" : "Maximise"} onClick={() => void appWindow.toggleMaximize()}>
           {maximised ? <CopyIcon className="-scale-x-100" /> : <SquareIcon className="size-3.5!" />}
-        </button>
-        <button
-          type="button"
-          className={cn(WINDOW_BUTTON, "hover:bg-window-close hover:text-window-close-foreground focus-visible:bg-window-close focus-visible:text-window-close-foreground")}
+        </WindowButton>
+        <WindowButton
+          label="Close"
           onClick={() => void appWindow.close()}
-          aria-label="Close"
+          className="hover:bg-window-close hover:text-window-close-foreground focus-visible:bg-window-close focus-visible:text-window-close-foreground"
         >
           <XIcon />
-        </button>
+        </WindowButton>
       </div>
     </header>
   );
