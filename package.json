@@ -10,7 +10,7 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "tsc && tsc -p scripts && vite build",
+    "build": "tsc && tsc -p tsconfig.node.json && tsc -p scripts && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
     "changelog": "node scripts/check-changelog.ts",

@@ -1,10 +1,16 @@
 {
+  // vite.config.ts and the changelog module it reads, checked by `pnpm build` with tsc -p tsconfig.node.json.
   "compilerOptions": {
-    "composite": true,
+    "noEmit": true,
+    "target": "ES2023",
+    "lib": ["ES2023"],
     "skipLibCheck": true,
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "allowSyntheticDefaultImports": true
+    "allowSyntheticDefaultImports": true,
+    "allowImportingTsExtensions": true,
+    "strict": true,
+    "types": ["node"]
   },
-  "include": ["vite.config.ts"]
+  "include": ["vite.config.ts", "scripts/changelog.ts"]
 }
