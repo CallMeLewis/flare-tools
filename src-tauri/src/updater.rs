@@ -224,9 +224,9 @@ impl Updater {
         self.change_settings(app, |settings| settings.channel = channel)?;
         {
             let mut inner = self.inner.lock().unwrap();
-            // An update found on the other channel may not be on this one.
+            // An update found on the other channel may not be on this one, whatever is showing now.
+            inner.offered = None;
             if matches!(inner.status, UpdateStatus::Available { .. }) {
-                inner.offered = None;
                 inner.status = UpdateStatus::Idle;
             }
         }
