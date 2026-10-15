@@ -25,6 +25,13 @@ const LEVEL_CLASS: Record<LogLevel, string> = {
   success: "text-success",
 };
 
+const STATUS_LABEL: Record<StepStatus, string> = {
+  running: "running",
+  done: "done",
+  failed: "failed",
+  skipped: "skipped",
+};
+
 function StepIcon({ status }: { status: StepStatus | undefined }) {
   switch (status) {
     case "running":
@@ -42,7 +49,7 @@ function StepIcon({ status }: { status: StepStatus | undefined }) {
 
 export function BuildSteps({ session }: { session: BuildSession }) {
   return (
-    <ol className="flex flex-wrap items-center gap-1.5 text-xs" aria-label="Build steps">
+    <ol className="flex flex-wrap items-center gap-1.5 text-xs" aria-label="Build steps" aria-live="polite">
       {STEPS.map(({ step, label }, index) => {
         const status = session.steps[step];
         return (
@@ -60,7 +67,7 @@ export function BuildSteps({ session }: { session: BuildSession }) {
                 <StepIcon status={status} />
               </span>
               {label}
-              {status === "skipped" && <span className="sr-only">(skipped)</span>}
+              {status && <span className="sr-only">({STATUS_LABEL[status]})</span>}
             </span>
           </li>
         );
@@ -90,7 +97,8 @@ export function BuildLog({ session }: { session: BuildSession }) {
       tabIndex={0}
       className="min-h-0 flex-1 overflow-auto rounded-lg border bg-muted/60 p-3 dark:bg-background font-mono text-xs leading-relaxed outline-none select-text focus-visible:ring-3 focus-visible:ring-ring/50"
       role="log"
-      aria-live="polite"
+      // A log announces each new line by default, which is thousands in a build. The steps say how it's going.
+      aria-live="off"
       aria-label="Build output"
     >
       {session.log.length === 0 ? (
