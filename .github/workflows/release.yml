@@ -38,6 +38,7 @@ jobs:
         with:
           ref: ${{ env.TAG }}
           fetch-depth: 0
+          persist-credentials: false
       - name: Tag matches package.json
         run: |
           version=$(node -p 'require("./package.json").version')
@@ -72,14 +73,11 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: write
-    env:
-      GH_TOKEN: ${{ github.token }}
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
     steps:
       - uses: actions/checkout@v5
         with:
           ref: ${{ env.TAG }}
+          persist-credentials: false
       - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
       - uses: actions/setup-node@v5
         with:
@@ -91,7 +89,12 @@ jobs:
         with:
           name: windows
           path: src-tauri/target/release/bundle/nsis
+      # The secrets are only given to this step, not to installing the dependencies, and the script passes each tool
+      # only the ones it needs.
       - name: Sign and publish
         run: node scripts/publish-update.ts publish
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          GH_TOKEN: ${{ github.token }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

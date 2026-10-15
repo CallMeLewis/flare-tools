@@ -7,7 +7,8 @@
 #
 # Third-party actions are pinned to a commit, with its version as a comment, so a moved tag can't change what runs in
 # Release next to the signing key; GitHub's own actions follow their major version tags. To update a pin, take the
-# commit of a release that has been out for a week or more.
+# commit of a release that has been out for a week or more. Checkouts don't keep the GitHub token in .git/config, where
+# every later step could read it.
 #
 # With `sign`, the build is signed with the code signing certificate, which is kept in Certum's cloud and reached
 # through SimplySign Desktop. It needs the secrets CERTUM_USERNAME (the SimplySign account's email) and
@@ -43,6 +44,7 @@ jobs:
       - uses: actions/checkout@v5
         with:
           ref: ${{ inputs.ref }}
+          persist-credentials: false
       - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
       - uses: actions/setup-node@v5
         with:
@@ -67,6 +69,7 @@ jobs:
       - uses: actions/checkout@v5
         with:
           ref: ${{ inputs.ref }}
+          persist-credentials: false
       - name: Install Rust (the version in rust-toolchain.toml)
         run: rustup toolchain install
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
@@ -90,6 +93,7 @@ jobs:
       - uses: actions/checkout@v5
         with:
           ref: ${{ inputs.ref }}
+          persist-credentials: false
       - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
       - uses: actions/setup-node@v5
         with:
@@ -169,6 +173,7 @@ jobs:
       - uses: actions/checkout@v5
         with:
           ref: ${{ inputs.ref }}
+          persist-credentials: false
       - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
       - uses: actions/setup-node@v5
         with:

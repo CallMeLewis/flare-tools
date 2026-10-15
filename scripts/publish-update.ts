@@ -45,6 +45,22 @@ const tauri = join(root, "node_modules", "@tauri-apps", "cli", "tauri.js");
 const wrangler = join(root, "node_modules", "wrangler", "bin", "wrangler.js");
 const target = join(root, "src-tauri", "target");
 
+/** The secrets the Release workflow gives this script, by the tool that needs each. */
+const SECRETS = {
+  signer: ["TAURI_SIGNING_PRIVATE_KEY", "TAURI_SIGNING_PRIVATE_KEY_PASSWORD"],
+  github: ["GH_TOKEN", "GITHUB_TOKEN"],
+  cloudflare: ["CLOUDFLARE_API_TOKEN", "CLOUDFLARE_ACCOUNT_ID"],
+};
+
+/** The environment with only the given secrets, so no tool, or anything it runs, can read another's. */
+function envFor(...keep: (keyof typeof SECRETS)[]): NodeJS.ProcessEnv {
+  const env = { ...process.env };
+  for (const [tool, names] of Object.entries(SECRETS)) {
+    if (!keep.includes(tool as keyof typeof SECRETS)) for (const name of names) delete env[name];
+  }
+  return env;
+}
+
 /** What each release ships. `platform` is the updater's key for it; `paths` are where Tauri may have built it. */
 interface Build {
   platform: string;
@@ -111,7 +127,7 @@ try {
 function keygen(): void {
   if (existsSync(keyPath)) throw new Error(`A signing key already exists at ${keyPath}. Refusing to replace it.`);
   mkdirSync(dirname(keyPath), { recursive: true });
-  run(process.execPath, [tauri, "signer", "generate", "--ci", "--password", "", "--write-keys", keyPath]);
+  run(process.execPath, [tauri, "signer", "generate", "--ci", "--password", "", "--write-keys", keyPath], envFor());
   console.log(`\nSigning key written to ${keyPath}. Back it up: without it no further updates can be shipped.`);
   console.log(
     `Public key for plugins.updater.pubkey in src-tauri/tauri.conf.json:\n${readFileSync(`${keyPath}.pub`, "utf8").trim()}`,
@@ -146,7 +162,7 @@ function check(): void {
   const scratch = mkdtempSync(join(tmpdir(), "flare-tools-release-check-"));
   try {
     const key = join(scratch, "key");
-    run(process.execPath, [tauri, "signer", "generate", "--ci", "--password", "", "--write-keys", key]);
+    run(process.execPath, [tauri, "signer", "generate", "--ci", "--password", "", "--write-keys", key], envFor());
     const release = prepare({ path: key, pubkey: readFileSync(`${key}.pub`, "utf8").trim() });
     for (const build of release.builds) rmSync(`${build.file}.sig`);
     const feed = JSON.stringify(manifest(release, `https://github.com/${repo}/releases/download/v${release.version}/`));
@@ -180,7 +196,8 @@ function prepare(testKey?: { path: string; pubkey: string }): Release {
   const pubkey = testKey?.pubkey ?? config.plugins?.updater?.pubkey ?? "";
   const builds = found.map(({ platform, file: built, uploadName }) => {
     const file = built!; // Every build was found, or the check above stopped.
-    run(process.execPath, [tauri, "signer", "sign", ...key, "--password", "", "--app-version", version, file]);
+    const args = [tauri, "signer", "sign", ...key, "--password", "", "--app-version", version, file];
+    run(process.execPath, args, envFor("signer"));
     const signature = readFileSync(`${file}.sig`, "utf8").trim();
     if (keyId(signature) !== keyId(pubkey)) {
       throw new Error("The signing key does not match plugins.updater.pubkey in src-tauri/tauri.conf.json.");
@@ -273,7 +290,7 @@ async function publishRelease(release: Release): Promise<void> {
  * the betas between them.
  */
 function githubNotes(release: Release): string {
-  const tagged = capture("git", ["ls-remote", "--tags", "--refs", "origin", "refs/tags/v*"], true)
+  const tagged = git(["ls-remote", "--tags", "--refs", "origin", "refs/tags/v*"], true)
     .split("\n")
     .map((line) => line.match(/refs\/tags\/v(.+)$/)?.[1])
     .filter((version) => version !== undefined);
@@ -307,7 +324,7 @@ async function publishFeed(release: Release): Promise<void> {
   for (const name of names) {
     const object = `${r2Bucket}/${r2Prefix}/${name}`;
     const flags = ["--file", file, "--remote", "--content-type", "application/json", "--cache-control", "no-cache"];
-    run(process.execPath, [wrangler, "r2", "object", "put", object, ...flags]);
+    run(process.execPath, [wrangler, "r2", "object", "put", object, ...flags], envFor("cloudflare"));
   }
   console.log(`Published ${release.version} to ${names.map((name) => `${feedUrl}${name}`).join(" and ")}`);
 }
@@ -338,7 +355,8 @@ function checkReady(): string {
   if (git(["status", "--porcelain"])) throw new Error("Commit your changes before releasing: every release is tagged.");
   git(["fetch", "--quiet", "origin"]);
   // Release refuses a tag that isn't on main, but only once the tag is pushed and its version used up.
-  const onMain = spawnSync("git", ["merge-base", "--is-ancestor", "HEAD", "origin/main"], { cwd: root }).status === 0;
+  const ancestor = ["merge-base", "--is-ancestor", "HEAD", "origin/main"];
+  const onMain = spawnSync("git", ancestor, { cwd: root, env: envFor("github") }).status === 0;
   if (!onMain) throw new Error("Push this commit to main before releasing: releases are only made from main.");
   const tagged = git(["rev-parse", "--quiet", "--verify", `v${version}^{commit}`], true);
   if (tagged && tagged !== git(["rev-parse", "HEAD"])) {
@@ -369,6 +387,7 @@ async function waitForCi(): Promise<void> {
     console.log(`Waiting for CI to finish on ${commit.slice(0, 7)}: ${found.url}`);
     spawnSync("gh", ["run", "watch", String(found.databaseId), "--interval", "10", "--repo", repo], {
       stdio: "inherit",
+      env: envFor("github"),
     });
     found = ciRun(commit)!;
   }
@@ -395,24 +414,24 @@ function ciRun(commit: string): { databaseId: number; status: string; conclusion
 function tagRelease(version: string): void {
   const tag = `v${version}`;
   if (!git(["rev-parse", "--quiet", "--verify", `${tag}^{commit}`], true)) {
-    run("git", ["tag", "--annotate", tag, "--message", `Release ${version}`]);
+    run("git", ["tag", "--annotate", tag, "--message", `Release ${version}`], envFor("github"));
   }
-  run("git", ["push", "origin", tag]);
+  run("git", ["push", "origin", tag], envFor("github"));
   console.log(`Tagged ${tag}`);
 }
 
 /** A git command's output. `allowFailure` returns "" instead of throwing, for lookups that may find nothing. */
 function git(args: string[], allowFailure = false): string {
-  return capture("git", args, allowFailure);
+  return capture("git", args, allowFailure, envFor("github"));
 }
 
 /** A GitHub CLI command's output, run against this repository. */
 function gh(args: string[], allowFailure = false): string {
-  return capture("gh", [...args, "--repo", repo], allowFailure);
+  return capture("gh", [...args, "--repo", repo], allowFailure, envFor("github"));
 }
 
-function capture(file: string, args: string[], allowFailure: boolean): string {
-  const result = spawnSync(file, args, { cwd: root, encoding: "utf8" });
+function capture(file: string, args: string[], allowFailure: boolean, env: NodeJS.ProcessEnv): string {
+  const result = spawnSync(file, args, { cwd: root, encoding: "utf8", env });
   if (result.status !== 0) {
     if (allowFailure) return "";
     throw new Error(`${file} ${args.join(" ")} failed:\n${(result.stderr || result.error?.message || "").trim()}`);
@@ -420,7 +439,7 @@ function capture(file: string, args: string[], allowFailure: boolean): string {
   return result.stdout.trim();
 }
 
-function run(file: string, args: string[]): void {
-  const result = spawnSync(file, args, { stdio: "inherit" });
+function run(file: string, args: string[], env: NodeJS.ProcessEnv): void {
+  const result = spawnSync(file, args, { stdio: "inherit", env });
   if (result.status !== 0) throw new Error(`${[file, ...args].join(" ")} failed.`);
 }
