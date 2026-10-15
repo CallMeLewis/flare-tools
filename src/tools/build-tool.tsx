@@ -38,9 +38,12 @@ export function BuildTool({ active, settingsOpen, settingsVersion, onOpenSetting
   const busyRef = useRef(false);
   const [busy, setBusy] = useState(false);
 
+  // Checks overlap, as when the window regains focus during one, and can finish in any order. Only the latest counts.
+  const statusRequest = useRef(0);
   const refreshStatuses = useCallback(async () => {
+    const request = ++statusRequest.current;
     const list = await api.modStatuses();
-    setStatuses(Object.fromEntries(list.map((s) => [s.id, s])));
+    if (request === statusRequest.current) setStatuses(Object.fromEntries(list.map((s) => [s.id, s])));
   }, []);
 
   const reload = useCallback(async () => {
