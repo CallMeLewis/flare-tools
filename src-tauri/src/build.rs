@@ -392,7 +392,8 @@ struct LogTail {
     /// Logs as they were before the build, so older builds' logs aren't shown.
     before: Snapshot,
     offsets: HashMap<PathBuf, u64>,
-    partial: HashMap<PathBuf, String>,
+    /// The end of each log after its last line break, kept as bytes until the line is whole.
+    partial: HashMap<PathBuf, Vec<u8>>,
     /// The P: drive, which the paths in pboProject's log are relative to.
     p_drive: PathBuf,
     /// pboProject couldn't convert a PNG to PAA.
@@ -488,17 +489,14 @@ impl LogTail {
             }
             *offset += bytes.len() as u64;
             let buffer = self.partial.entry(path.clone()).or_default();
-            buffer.push_str(&String::from_utf8_lossy(&bytes));
-            let mut lines = Vec::new();
-            while let Some(end) = buffer.find('\n') {
-                lines.push(buffer.drain(..=end).collect::<String>());
-            }
-            for line in lines {
+            buffer.extend_from_slice(&bytes);
+            for line in take_lines(buffer) {
                 self.emit(reporter, line.trim_end());
             }
         }
         if flush {
-            let rests: Vec<String> = self.partial.drain().map(|(_, rest)| rest).collect();
+            let rests: Vec<String> =
+                self.partial.drain().map(|(_, rest)| String::from_utf8_lossy(&rest).into_owned()).collect();
             for rest in rests {
                 if !rest.trim().is_empty() {
                     self.emit(reporter, rest.trim_end());
@@ -506,6 +504,17 @@ impl LogTail {
             }
         }
     }
+}
+
+/// Takes the complete lines from the start of a log's unread bytes. Lines are decoded whole (pboProject
+/// writes UTF-8), so a character split between two reads of the log comes out intact.
+fn take_lines(buffer: &mut Vec<u8>) -> Vec<String> {
+    let mut lines = Vec::new();
+    while let Some(end) = buffer.iter().position(|&b| b == b'\n') {
+        let line: Vec<u8> = buffer.drain(..=end).collect();
+        lines.push(String::from_utf8_lossy(&line).into_owned());
+    }
+    lines
 }
 
 fn emit_log_line(reporter: &Reporter, line: &str) {
@@ -902,6 +911,17 @@ mod tests {
         assert!(source.join("config.cpp").is_file());
         assert_eq!(fs::read_dir(&records).unwrap().count(), 0);
         fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn keeps_a_character_split_between_reads() {
+        let text = "Processing \\Müller\r\nPrefix = Müller\r\n".as_bytes();
+        let split = text.iter().position(|&b| b == 0xC3).unwrap() + 1;
+        let mut buffer = text[..split].to_vec();
+        assert!(take_lines(&mut buffer).is_empty());
+        buffer.extend_from_slice(&text[split..]);
+        assert_eq!(take_lines(&mut buffer), ["Processing \\Müller\r\n", "Prefix = Müller\r\n"]);
+        assert!(buffer.is_empty());
     }
 
     #[test]
