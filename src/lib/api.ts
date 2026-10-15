@@ -70,6 +70,8 @@ export interface Inspection {
   hasModCpp: boolean;
   buildPath: string;
   link: LinkStatus;
+  /** Why the mod can't be built, if it can't. It's one of the warnings too. */
+  problem: string | null;
   warnings: string[];
 }
 

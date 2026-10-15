@@ -109,12 +109,7 @@ export function ModView({
   const inspection = useInspection(mod.sourcePath, mod.prefix, mod.pboName, refreshKey);
   const state = modState(mod, status, session);
   const running = Boolean(session?.running);
-  const blocked =
-    !inspection ||
-    inspection.link === "conflict" ||
-    inspection.link === "noPDrive" ||
-    inspection.link === "badPrefix" ||
-    inspection.pbos.length === 0;
+  const blocked = !inspection || Boolean(inspection.problem);
   const keyName = fileName(mod.privateKeyPath || settings.defaultPrivateKeyPath).replace(/\.biprivatekey$/i, "");
   // An earlier build picked from the list, shown in place of the current one.
   const [viewingId, setViewingId] = useState<string | null>(null);

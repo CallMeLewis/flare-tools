@@ -655,11 +655,8 @@ fn build_steps(
     reporter.step(Step::Prepare, StepStatus::Running);
     let pbo_project = require_file(&settings.pbo_project_path, "pboProject.exe", Step::Prepare)?;
     let plan = inspect::inspect(&settings.p_drive, &m.source_path, m.prefix.as_deref(), m.pbo_name.as_deref());
-    if !plan.source_exists {
-        return Err(Failure::new(Step::Prepare, format!("{} doesn't exist.", m.source_path)));
-    }
-    if plan.pbos.is_empty() {
-        return Err(Failure::new(Step::Prepare, "No config.cpp was found, so there's nothing to pack."));
+    if let Some(problem) = &plan.problem {
+        return Err(Failure::new(Step::Prepare, problem.clone()));
     }
     if m.output_path.trim().is_empty() {
         return Err(Failure::new(Step::Prepare, "The output folder isn't set."));
@@ -678,8 +675,9 @@ fn build_steps(
             reporter.log(Level::Info, format!("Linked {} → {} for this build", link.display(), m.source_path));
             Some(junction)
         }
+        // Each of these is a problem, which stopped the build above.
         LinkStatus::Conflict | LinkStatus::NoPDrive | LinkStatus::BadPrefix => {
-            return Err(Failure::new(Step::Prepare, plan.warnings.last().cloned().unwrap_or_default()));
+            return Err(Failure::new(Step::Prepare, "This mod can't be built from where it is."));
         }
     };
     let addons = output.join("addons");

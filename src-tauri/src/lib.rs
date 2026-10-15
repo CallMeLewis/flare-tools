@@ -167,14 +167,8 @@ async fn mod_statuses(store: State<'_, Store>) -> Result<Vec<ModStatus>, String>
                 newest_file(dir, &mut newest, &mut seen);
                 let plan =
                     inspect::inspect(&settings.p_drive, &m.source_path, m.prefix.as_deref(), m.pbo_name.as_deref());
-                let blocked = !plan.source_exists
-                    || plan.pbos.is_empty()
-                    || matches!(
-                        plan.link,
-                        inspect::LinkStatus::Conflict | inspect::LinkStatus::NoPDrive | inspect::LinkStatus::BadPrefix
-                    );
                 ModStatus {
-                    problem: blocked.then(|| plan.warnings.last().cloned().unwrap_or_default()),
+                    problem: plan.problem.clone(),
                     version: plan
                         .mod_cpp
                         .as_ref()

@@ -82,6 +82,8 @@ pub struct Inspection {
     pub build_path: String,
     pub link: LinkStatus,
     pub warnings: Vec<String>,
+    /// Why the mod can't be built, if it can't. It's one of the warnings too.
+    pub problem: Option<String>,
 }
 
 /// Normalises a prefix to `a\b\c`: backslashes, no leading or trailing separators.
@@ -440,10 +442,12 @@ pub fn inspect(p_drive: &str, source_path: &str, prefix_override: Option<&str>, 
         }
     }
 
+    // What stops the mod being built, listed after the other warnings.
+    let mut blockers = Vec::new();
     if !source_exists {
-        warnings.push(format!("{} doesn't exist.", source.display()));
+        blockers.push(format!("{} doesn't exist.", source.display()));
     } else if pbos.is_empty() {
-        warnings.push("No config.cpp was found, so there's nothing for pboProject to pack.".into());
+        blockers.push("No config.cpp was found, so there's nothing for pboProject to pack.".into());
     }
 
     let p_root = Path::new(p_drive.trim());
@@ -453,7 +457,7 @@ pub fn inspect(p_drive: &str, source_path: &str, prefix_override: Option<&str>, 
     let link = if p_drive.trim().is_empty() || !p_root.exists() {
         LinkStatus::NoPDrive
     } else if let Some(problem) = bad_prefix {
-        warnings.push(problem);
+        blockers.push(problem);
         LinkStatus::BadPrefix
     } else if same_folder(source, &build_path) {
         LinkStatus::Direct
@@ -463,13 +467,15 @@ pub fn inspect(p_drive: &str, source_path: &str, prefix_override: Option<&str>, 
         LinkStatus::Conflict
     };
     match link {
-        LinkStatus::NoPDrive => warnings.push("The P: drive isn't set up or isn't mounted.".into()),
-        LinkStatus::Conflict => warnings.push(format!(
+        LinkStatus::NoPDrive => blockers.push("The P: drive isn't set up or isn't mounted.".into()),
+        LinkStatus::Conflict => blockers.push(format!(
             "{} already exists and isn't this mod's folder. pboProject packs from P:\\<prefix>, so build from that folder, move it, or change the prefix.",
             build_path.display()
         )),
         _ => {}
     }
+    let problem = blockers.first().cloned();
+    warnings.extend(blockers);
 
     Inspection {
         source_exists,
@@ -486,6 +492,7 @@ pub fn inspect(p_drive: &str, source_path: &str, prefix_override: Option<&str>, 
         build_path: build_path.to_string_lossy().into_owned(),
         link,
         warnings,
+        problem,
     }
 }
 
