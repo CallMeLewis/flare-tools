@@ -53,6 +53,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Release notes are written
         run: pnpm changelog
+      - name: Release scripts pass their tests
+        run: pnpm test
       - name: Type check and build
         run: pnpm build
 

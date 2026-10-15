@@ -14,6 +14,7 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "changelog": "node scripts/check-changelog.ts",
+    "test": "node --test \"scripts/*.test.ts\"",
     "bump": "node scripts/bump-version.ts",
     "dist": "pnpm changelog && tauri build --bundles nsis",
     "release": "node scripts/publish-update.ts release",
