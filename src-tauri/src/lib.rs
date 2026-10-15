@@ -280,9 +280,10 @@ async fn open_folder(path: String) -> Result<(), String> {
 
 #[tauri::command]
 fn open_url(url: String) -> Result<(), String> {
+    // Only web and Steam links: another kind, such as file: or a program's own, could run something.
     // steam:// links open inside the Steam client, which is signed in already.
-    if !(url.starts_with("https://") || url.starts_with("steam://")) {
-        return Err("Only https and steam links can be opened.".into());
+    if !["https://", "http://", "steam://"].iter().any(|scheme| url.starts_with(scheme)) {
+        return Err("Only web and Steam links can be opened.".into());
     }
     // Explorer can't take a URL with a query string (it opens Documents instead), so hand it to
     // Windows' URL handler, which opens the default browser like a clicked link.

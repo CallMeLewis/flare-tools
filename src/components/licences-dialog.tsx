@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { ExternalLinkIcon, ScaleIcon } from "lucide-react";
-import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,7 +13,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { api, errorMessage } from "@/lib/api";
+import { openLink } from "@/lib/open";
 // Built into the app, since the font's licence has to travel with it.
 import geistLicence from "../../licenses/OFL-geist.txt?raw";
 
@@ -27,10 +26,6 @@ interface Component {
   link?: { label: string; url: string };
   /** The licence's full text, shown in place. */
   text?: string;
-}
-
-function openLink(url: string) {
-  api.openUrl(url).catch((error) => toast.error("Couldn't open the link", { description: errorMessage(error) }));
 }
 
 /** The app's own licence and what it ships with, behind a "View licences" button. */

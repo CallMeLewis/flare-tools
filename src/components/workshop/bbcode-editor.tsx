@@ -25,8 +25,8 @@ import { Kbd } from "@/components/ui/kbd";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Counter } from "@/components/workshop/counter";
-import { api } from "@/lib/api";
 import { parseBBCode, type BBNode } from "@/lib/bbcode";
+import { openLink } from "@/lib/open";
 import { cn } from "@/lib/utils";
 import { textBytes } from "@/lib/workshop";
 
@@ -323,7 +323,7 @@ function render(nodes: BBNode[], structural: boolean): ReactNode[] {
             href={href ?? undefined}
             onClick={(e) => {
               e.preventDefault();
-              if (href) void api.openUrl(href);
+              if (href) openLink(href);
             }}
             className="text-info underline underline-offset-2 hover:text-info/80"
           >

@@ -30,6 +30,7 @@ import {
   type SteamStatus,
   type WorkshopItem,
 } from "@/lib/api";
+import { openLink } from "@/lib/open";
 import { cn } from "@/lib/utils";
 
 const SELECTED_KEY = "selectedWorkshopItem";
@@ -135,7 +136,7 @@ export function WorkshopTool({ active, steamOnline, onBusyChange }: WorkshopTool
       if (outcome.needsAgreement) {
         toast.warning(`${request.title} is published, but hidden`, {
           description: "Steam won't show it until you accept the Workshop legal agreement.",
-          action: { label: "Open agreement", onClick: () => void api.openUrl(AGREEMENT_URL) },
+          action: { label: "Open agreement", onClick: () => openLink(AGREEMENT_URL) },
           duration: Infinity,
         });
       } else if (!request.itemId) {

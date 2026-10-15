@@ -36,6 +36,7 @@ import {
   type WorkshopItem,
 } from "@/lib/api";
 import { compactNumber, fileSize, shortDate, timeAgo } from "@/lib/format";
+import { openLink } from "@/lib/open";
 import { cn } from "@/lib/utils";
 import { LIMITS, TAG_GROUPS, textBytes, VISIBILITY_DESCRIPTION, VISIBILITY_LABEL } from "@/lib/workshop";
 
@@ -343,7 +344,7 @@ export function ItemEditor({
         </div>
         <div className="flex shrink-0 items-center gap-2">
           {item ? (
-            <Button variant="ghost" onClick={() => void api.openUrl(workshopUrl(item.id))}>
+            <Button variant="ghost" onClick={() => openLink(workshopUrl(item.id))}>
               <ExternalLinkIcon data-icon="inline-start" />
               View on Steam
             </Button>

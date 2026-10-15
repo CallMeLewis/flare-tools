@@ -29,9 +29,10 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import type { BuildSession } from "@/hooks/use-build-sessions";
 import { useBuildHistory, useSavedBuild } from "@/hooks/use-build-history";
 import { useInspection } from "@/hooks/use-inspection";
-import { api, type BuildRecord, type ModConfig, type ModStatus, type Settings } from "@/lib/api";
+import type { BuildRecord, ModConfig, ModStatus, Settings } from "@/lib/api";
 import { dateTime, fileName, fileSize, seconds } from "@/lib/format";
 import { modState, STATE_DOT, stateLabel } from "@/lib/mod-state";
+import { openFolder } from "@/lib/open";
 import { cn } from "@/lib/utils";
 
 interface ModViewProps {
@@ -160,7 +161,7 @@ export function ModView({
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <Button variant="ghost" onClick={() => void api.openFolder(mod.outputPath)}>
+          <Button variant="ghost" onClick={() => openFolder(mod.outputPath)}>
             <FolderOpenIcon data-icon="inline-start" />
             Open output
           </Button>

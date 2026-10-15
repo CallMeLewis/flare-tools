@@ -41,6 +41,7 @@ import {
   type UpdateSettings,
   type UpdateStatus,
 } from "@/lib/api";
+import { openLink } from "@/lib/open";
 import { releaseNoteItems, runningVersionNotes } from "@/lib/release-notes";
 import type { ThemePreference } from "@/lib/theme";
 import { UI_SCALES } from "@/lib/ui-scale";
@@ -419,7 +420,7 @@ function SteamSection() {
         </div>
         <Button
           variant="outline"
-          onClick={() => void api.openUrl(steamUrl(`https://steamcommunity.com/profiles/${steam.steamId}`))}
+          onClick={() => openLink(steamUrl(`https://steamcommunity.com/profiles/${steam.steamId}`))}
         >
           <ExternalLinkIcon data-icon="inline-start" />
           View profile
@@ -605,7 +606,8 @@ function AboutSection() {
   const updateVersion = "version" in status ? status.version : undefined;
 
   useEffect(() => {
-    void api.updateSettings().then(setUpdateSettings);
+    // Without them the update options stay hidden, which is all a failure here could mean.
+    api.updateSettings().then(setUpdateSettings, () => {});
   }, []);
 
   function openRepo() {
