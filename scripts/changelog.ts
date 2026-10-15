@@ -1,6 +1,7 @@
 // Reads CHANGELOG.md, the one place release notes live. A line "## <version>", optionally followed by " - <date>",
-// starts that version's section, and the section's "- " lines are its notes. Everything else is ignored, so the file
-// can have an introduction. Used by the build check, the release script and the app build.
+// starts that version's section, and the section's "- " lines are its notes. Any other "## " line is a mistake, and
+// stops whatever is reading the file rather than adding its notes to the version above. Everything else is ignored, so
+// the file can have an introduction. Used by the build check, the release script and the app build.
 
 export interface Release {
   version: string;
@@ -12,9 +13,13 @@ export interface Release {
 export function parseChangelog(text: string): Release[] {
   const releases: Release[] = [];
   for (const line of text.split(/\r?\n/)) {
-    const heading = line.match(/^## +(\S+)(?: +- +(\S+))?\s*$/);
-    if (heading) releases.push({ version: heading[1], date: heading[2] ?? null, items: [] });
-    else if (line.startsWith("- ")) {
+    if (line.startsWith("## ")) {
+      const heading = line.match(/^## +(\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?)(?: +- +(\d{4}-\d{2}-\d{2}))?\s*$/);
+      if (!heading) {
+        throw new Error(`CHANGELOG.md: "${line}" isn't a version heading. Write it like "## 1.2.0 - 2026-11-14".`);
+      }
+      releases.push({ version: heading[1], date: heading[2] ?? null, items: [] });
+    } else if (line.startsWith("- ")) {
       const item = line.slice(2).trim();
       if (item) releases.at(-1)?.items.push(item);
     }

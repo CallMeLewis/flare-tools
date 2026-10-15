@@ -11,7 +11,13 @@ import { notesFor } from "./changelog.ts";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const { version }: { version: string } = JSON.parse(readFileSync(resolve(root, "package.json"), "utf8"));
 
-const notes = notesFor(readFileSync(resolve(root, "CHANGELOG.md"), "utf8"), version);
+const notes = (() => {
+  try {
+    return notesFor(readFileSync(resolve(root, "CHANGELOG.md"), "utf8"), version);
+  } catch (error) {
+    fail(error instanceof Error ? error.message : String(error));
+  }
+})();
 if (!notes) fail(`CHANGELOG.md has no "## ${version}" section.`);
 if (notes.length === 0) fail(`The "## ${version}" section of CHANGELOG.md has no "- " bullet points.`);
 console.log(`Release notes for ${version}:\n\n${notes.map((item) => `- ${item}`).join("\n")}\n`);

@@ -32,7 +32,13 @@ const edits = [
 ];
 
 const changelog = readFileSync(path("CHANGELOG.md"), "utf8");
-const releases = parseChangelog(changelog);
+const releases = (() => {
+  try {
+    return parseChangelog(changelog);
+  } catch (error) {
+    fail(error instanceof Error ? error.message : String(error));
+  }
+})();
 if (!releases.some((release) => release.version === version)) {
   const at = changelog.search(/^## /m);
   const section = `## ${version} - ${today()}\n\n`;
