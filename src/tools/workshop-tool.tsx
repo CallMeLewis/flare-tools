@@ -162,6 +162,10 @@ export function WorkshopTool({ active, steamOnline, onBusyChange }: WorkshopTool
     }
   }
 
+  // Steam can be unreachable for a moment, such as while it restarts. An open editor stays, edits and all, and waits.
+  const unreachable = steam?.state === "unavailable";
+  const keepEditor = unreachable && editorKey !== null;
+
   const leavingName = showingNew ? "the new item" : (selected?.title || "this item");
   // The edits are on their way to Steam, so leaving only loses them if Steam turns them down.
   const leavingWhileSaving = publishing?.key === editorKey && publishing.sendsEdits;
@@ -180,25 +184,33 @@ export function WorkshopTool({ active, steamOnline, onBusyChange }: WorkshopTool
       />
 
       <main className="flex min-w-0 flex-1 flex-col">
-        {!steamOnline && steam && (
+        {steam && (!steamOnline || keepEditor) && (
           <div
             role="status"
             className="flex shrink-0 items-center gap-3 border-b bg-warning/10 px-6 py-2.5 text-sm"
           >
             <UnplugIcon className="size-4 shrink-0 text-warning" aria-hidden />
             <p className="flex-1">
-              Steam isn't connected. You can keep editing; publishing waits until it's back.
+              {steamOnline ? "Can't reach Steam." : "Steam isn't connected."} You can keep editing; publishing waits
+              until it's back.
             </p>
-            <Button variant="outline" size="sm" onClick={openSteam}>
-              Start Steam
-            </Button>
+            {steamOnline ? (
+              <Button variant="outline" size="sm" onClick={() => void refresh()} disabled={refreshing}>
+                {refreshing && <Spinner data-icon="inline-start" />}
+                Try again
+              </Button>
+            ) : (
+              <Button variant="outline" size="sm" onClick={openSteam}>
+                Start Steam
+              </Button>
+            )}
           </div>
         )}
         {!steam ? (
           <div className="flex flex-1 items-center justify-center">
             <Spinner className="size-5 text-muted-foreground" />
           </div>
-        ) : steam.state === "unavailable" ? (
+        ) : unreachable && !keepEditor ? (
           <Empty className="flex-1">
             <EmptyHeader>
               <EmptyMedia variant="icon">
@@ -221,7 +233,7 @@ export function WorkshopTool({ active, steamOnline, onBusyChange }: WorkshopTool
             mods={mods}
             progress={publishing?.key === editorKey ? publishing.progress : null}
             busy={publishing !== null}
-            offline={!steamOnline}
+            offline={!steamOnline || unreachable}
             onPublish={publish}
             onDiscardNew={() => requestSelect(items?.[0]?.id ?? null)}
             onDirtyChange={setDirty}
