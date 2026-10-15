@@ -152,7 +152,9 @@ export function ModView({
       <header className="flex h-16 shrink-0 items-center gap-4 border-b px-6">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2.5">
-            <h1 className="truncate text-lg font-semibold">{mod.name}</h1>
+            <h1 className="truncate text-lg font-semibold" title={mod.name}>
+              {mod.name}
+            </h1>
             <Badge variant="outline" className="gap-1.5 font-normal text-muted-foreground">
               <span className={cn("size-1.5 rounded-full", STATE_DOT[state])} aria-hidden />
               {stateLabel(state, mod)}

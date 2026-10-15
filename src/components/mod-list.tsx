@@ -68,7 +68,9 @@ export function ModList({
                     <span className={cn("mt-1.5 size-2 shrink-0 rounded-full", STATE_DOT[state])} aria-hidden />
                     <span className="flex min-w-0 flex-col">
                       <span className="flex min-w-0 items-center gap-2">
-                        <span className="truncate text-sm font-medium">{mod.name}</span>
+                        <span className="truncate text-sm font-medium" title={mod.name}>
+                          {mod.name}
+                        </span>
                         {statuses[mod.id]?.version && (
                           <Badge variant="outline" className="h-4.5 shrink-0 px-1.5 font-mono font-normal text-muted-foreground">
                             {statuses[mod.id].version}

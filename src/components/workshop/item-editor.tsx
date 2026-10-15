@@ -312,7 +312,9 @@ export function ItemEditor({
         <Thumbnail src={preview?.url ?? item?.previewUrl ?? null} className="size-9" />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2.5">
-            <h1 className="truncate text-lg font-semibold">{title}</h1>
+            <h1 className="truncate text-lg font-semibold" title={title}>
+              {title}
+            </h1>
             <Badge variant="outline" className="font-normal text-muted-foreground">
               {isNew ? "Not published" : VISIBILITY_LABEL[item.visibility]}
             </Badge>

@@ -127,7 +127,9 @@ export function ItemList({ steam, items, selectedId, onSelect, onNew, onRefresh,
                   >
                     <Thumbnail src={item.previewUrl} className="size-9" />
                     <span className="flex min-w-0 flex-col">
-                      <span className="truncate text-sm font-medium">{item.title || "Untitled"}</span>
+                      <span className="truncate text-sm font-medium" title={item.title || undefined}>
+                        {item.title || "Untitled"}
+                      </span>
                       <span className="truncate text-xs text-muted-foreground">
                         {VISIBILITY_LABEL[item.visibility]} · {timeAgo(item.timeUpdated)}
                       </span>
