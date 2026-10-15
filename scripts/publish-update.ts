@@ -120,10 +120,14 @@ try {
       );
     }
   } else if (command === "publish") {
-    await refuseLiveVersion(packageVersion());
-    const release = prepare();
-    await publishRelease(release);
-    await publishFeed(release);
+    const version = packageVersion();
+    const live = await liveManifest(version);
+    if (live) await finishFeed(version, live);
+    else {
+      const release = prepare();
+      await publishRelease(release);
+      await publishFeed(release);
+    }
   } else throw new Error(`Unknown command "${command}". Use release, publish, feed, check or keygen.`);
 } catch (error) {
   console.error(`\n${error instanceof Error ? error.message : error}`);
@@ -239,20 +243,27 @@ function manifest(release: Release, baseUrl: string) {
   };
 }
 
-/**
- * Refuses to publish a version again once the feed offers it. A rebuilt installer has a new signature, so replacing the
- * one on GitHub would break updates for everyone the feed sends to it until the feed caught up, and for good if writing
- * the feed then failed.
- */
-async function refuseLiveVersion(version: string): Promise<void> {
+/** A channel file on the live feed that already offers `version`, as published. */
+async function liveManifest(version: string): Promise<{ name: string; text: string } | null> {
   for (const name of ["latest.json", "beta.json"]) {
-    if ((await publishedVersion(name)) === version) {
-      throw new Error(
-        `${version} is already on the update feed (${feedUrl}${name}), and building it again would replace the ` +
-          "installer the feed points at. Release a new version instead.",
-      );
-    }
+    const text = await publishedText(name);
+    if (text && JSON.parse(text).version === version) return { name, text };
   }
+  return null;
+}
+
+/**
+ * Publishing a version the feed already offers only finishes the feed, as when writing a stable release's beta.json
+ * failed after its latest.json. A rebuilt installer has a new signature, so replacing the one on GitHub would break
+ * updates for everyone the feed sends to it. Instead the channels still to update get the channel file that's live,
+ * which points at the installer that's there.
+ */
+async function finishFeed(version: string, live: { name: string; text: string }): Promise<void> {
+  console.log(`${version} is already on the update feed (${feedUrl}${live.name}), so its installer is left as it is.`);
+  const file = join(target, "github-release", live.name);
+  mkdirSync(dirname(file), { recursive: true });
+  writeFileSync(file, live.text);
+  await writeChannels(version, file);
 }
 
 /**
@@ -306,29 +317,37 @@ function githubNotes(release: Release): string {
   return `${release.notes}\n\nEvery change since ${previous}: ${compare}`;
 }
 
-/**
- * The channel file last, so the app never sees a version whose builds are not there yet. Beta users get a stable
- * release too, unless a newer beta is already out. A channel file already on a newer version is left alone, so
- * building an older tag again doesn't take users back to it. The same version is written again, as its builds have
- * new signatures.
- */
+/** The channel file last, so the app never sees a version whose builds are not there yet. */
 async function publishFeed(release: Release): Promise<void> {
   const builds = `https://github.com/${repo}/releases/download/v${release.version}/`;
   const file = join(target, "github-release", channelFile(release));
   writeFileSync(file, JSON.stringify(manifest(release, builds), null, 2) + "\n");
+  await writeChannels(release.version, file);
+}
+
+/**
+ * Writes a version's channel file to the channels it goes to. Beta users get a stable release too, unless a newer beta
+ * is already out. A channel file already on this version or a newer one is left alone, so building an older tag again
+ * doesn't take users back to it.
+ */
+async function writeChannels(version: string, file: string): Promise<void> {
   const names: string[] = [];
-  for (const name of release.prerelease ? ["beta.json"] : ["latest.json", "beta.json"]) {
-    const newer = await newerPublished(name, release.version);
-    if (newer) console.log(`Left ${name} on ${newer}, which is newer than ${release.version}.`);
-    else names.push(name);
+  for (const name of version.includes("-") ? ["beta.json"] : ["latest.json", "beta.json"]) {
+    const published = await publishedVersion(name);
+    if (published && compareVersions(published, version) > 0) {
+      console.log(`Left ${name} on ${published}, which is newer than ${version}.`);
+    } else if (published !== version) names.push(name);
   }
-  if (names.length === 0) return;
+  if (names.length === 0) {
+    console.log(`Every channel ${version} goes to already has it or something newer.`);
+    return;
+  }
   for (const name of names) {
     const object = `${r2Bucket}/${r2Prefix}/${name}`;
     const flags = ["--file", file, "--remote", "--content-type", "application/json", "--cache-control", "no-cache"];
     run(process.execPath, [wrangler, "r2", "object", "put", object, ...flags], envFor("cloudflare"));
   }
-  console.log(`Published ${release.version} to ${names.map((name) => `${feedUrl}${name}`).join(" and ")}`);
+  console.log(`Published ${version} to ${names.map((name) => `${feedUrl}${name}`).join(" and ")}`);
 }
 
 /** The version in a channel file on the live feed, if it is newer than `version`. */
@@ -339,12 +358,19 @@ async function newerPublished(name: string, version: string): Promise<string | n
 
 /** Version in a channel file on the live feed, or null if it has not been published. */
 async function publishedVersion(name: string): Promise<string | null> {
+  const text = await publishedText(name);
+  if (!text) return null;
+  const { version } = JSON.parse(text) as { version?: string };
+  if (!version) throw new Error(`${feedUrl}${name} has no version.`);
+  return version;
+}
+
+/** A channel file on the live feed as it's published, or null if it hasn't been. */
+async function publishedText(name: string): Promise<string | null> {
   const response = await fetch(`${feedUrl}${name}?t=${Date.now()}`, { cache: "no-store" });
   if (response.status === 404) return null;
   if (!response.ok) throw new Error(`Could not read ${feedUrl}${name} (HTTP ${response.status}).`);
-  const { version } = (await response.json()) as { version?: string };
-  if (!version) throw new Error(`${feedUrl}${name} has no version.`);
-  return version;
+  return response.text();
 }
 
 /**
