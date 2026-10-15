@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { RefreshCwIcon } from "lucide-react";
 
 import { InstallUpdateDialog } from "@/components/install-update-dialog";
@@ -34,6 +34,11 @@ function label(status: UpdateStatus): string {
 export function UpdateButton() {
   const status = useUpdateStatus();
   const [confirmOpen, setConfirmOpen] = useState(false);
+  // Once the update isn't ready to install, after a failed install or a newer one replacing it, the dialog
+  // closes rather than coming back by itself when the next one is ready.
+  useEffect(() => {
+    if (status.state !== "ready") setConfirmOpen(false);
+  }, [status.state]);
   if (status.state === "unsupported") return null;
 
   const busy = status.state === "checking" || status.state === "downloading";

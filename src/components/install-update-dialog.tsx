@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 import {
   AlertDialog,
   AlertDialogAction,
@@ -8,6 +10,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
 
 /** Confirmation before a downloaded update installs. The installer runs silently, so this is the only prompt. */
@@ -20,8 +23,20 @@ export function InstallUpdateDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  // The app closes once the installer starts, so this only ends if starting it fails.
+  const [installing, setInstalling] = useState(false);
+
+  function install() {
+    setInstalling(true);
+    // A failed install shows on the update icon.
+    void api.installUpdate().catch(() => {
+      setInstalling(false);
+      onOpenChange(false);
+    });
+  }
+
   return (
-    <AlertDialog open={open} onOpenChange={onOpenChange}>
+    <AlertDialog open={open} onOpenChange={(next) => !installing && onOpenChange(next)}>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>Install version {version}?</AlertDialogTitle>
@@ -31,12 +46,10 @@ export function InstallUpdateDialog({
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>Not now</AlertDialogCancel>
-          <AlertDialogAction
-            // A failed install shows on the update icon.
-            onClick={() => void api.installUpdate().catch(() => {})}
-          >
-            Install and restart
+          <AlertDialogCancel disabled={installing}>Not now</AlertDialogCancel>
+          <AlertDialogAction onClick={install} disabled={installing}>
+            {installing && <Spinner data-icon="inline-start" />}
+            {installing ? "Installing…" : "Install and restart"}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
