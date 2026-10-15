@@ -320,7 +320,9 @@ function checkReady(): string {
   releaseNotes(version);
   if (git(["status", "--porcelain"])) throw new Error("Commit your changes before releasing: every release is tagged.");
   git(["fetch", "--quiet", "origin"]);
-  if (!git(["branch", "--remotes", "--contains", "HEAD"])) throw new Error("Push this commit before releasing.");
+  // Release refuses a tag that isn't on main, but only once the tag is pushed and its version used up.
+  const onMain = spawnSync("git", ["merge-base", "--is-ancestor", "HEAD", "origin/main"], { cwd: root }).status === 0;
+  if (!onMain) throw new Error("Push this commit to main before releasing: releases are only made from main.");
   const tagged = git(["rev-parse", "--quiet", "--verify", `v${version}^{commit}`], true);
   if (tagged && tagged !== git(["rev-parse", "HEAD"])) {
     throw new Error(`Tag v${version} already points at another commit. Bump the version before releasing.`);
