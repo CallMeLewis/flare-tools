@@ -131,6 +131,13 @@ fn pbo_stem(name: &str) -> &str {
     }
 }
 
+/// Two PBOs that would be written to the same file, since Windows ignores case in file names.
+fn same_name(pbos: &[PboPlan]) -> Option<(&PboPlan, &PboPlan)> {
+    pbos.iter()
+        .enumerate()
+        .find_map(|(i, a)| pbos[i + 1..].iter().find(|b| b.name.eq_ignore_ascii_case(&a.name)).map(|b| (a, b)))
+}
+
 fn is_hidden(path: &Path) -> bool {
     path.file_name().and_then(|n| n.to_str()).is_some_and(|n| n.starts_with('.'))
 }
@@ -448,6 +455,11 @@ pub fn inspect(p_drive: &str, source_path: &str, prefix_override: Option<&str>, 
         blockers.push(format!("{} doesn't exist.", source.display()));
     } else if pbos.is_empty() {
         blockers.push("No config.cpp was found, so there's nothing for pboProject to pack.".into());
+    } else if let Some((a, b)) = same_name(&pbos) {
+        blockers.push(format!(
+            "{} and {} would both be packed as {}.pbo, and one would overwrite the other. Rename one of the folders.",
+            a.rel_dir, b.rel_dir, a.name
+        ));
     }
 
     let p_root = Path::new(p_drive.trim());
@@ -521,6 +533,20 @@ mod tests {
         let plan = inspect(&root.to_string_lossy(), &source, Some(r"C:\Windows"), None);
         assert_eq!(plan.link, LinkStatus::BadPrefix);
         assert!(plan.build_path.is_empty());
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn blocks_two_addons_with_the_same_name() {
+        let root = std::env::temp_dir().join(format!("flare-tools-same-name-{}", std::process::id()));
+        for dir in [r"MyMod\gear\data", r"MyMod\weapons\Data"] {
+            fs::create_dir_all(root.join(dir)).unwrap();
+            fs::write(root.join(dir).join("config.cpp"), "").unwrap();
+        }
+        let source = root.join("MyMod").to_string_lossy().into_owned();
+        let plan = inspect(&root.to_string_lossy(), &source, None, None);
+        let problem = plan.problem.unwrap();
+        assert!(problem.contains(r"gear\data and weapons\Data would both be packed as data.pbo"), "{problem}");
         fs::remove_dir_all(root).unwrap();
     }
 
