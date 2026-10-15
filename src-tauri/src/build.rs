@@ -257,6 +257,15 @@ impl TempJunction {
         }
         missing.reverse();
         let target = std::path::absolute(target).map_err(|e| format!("Couldn't resolve {}: {e}", target.display()))?;
+        if is_network_path(&target) {
+            return Err(format!(
+                "{} is on a network share, and the link on P: can only point to a folder on this computer. Move the mod to a local drive.",
+                target.display()
+            ));
+        }
+        if fs::symlink_metadata(link).is_ok() {
+            return Err(format!("{} already exists.", link.display()));
+        }
 
         let record = (!records.as_os_str().is_empty()).then(|| records.join(format!("{}.json", std::process::id())));
         if let Some(record) = &record {
@@ -276,8 +285,12 @@ impl TempJunction {
             fs::create_dir(&dir).map_err(|e| format!("Couldn't create {}: {e}", dir.display()))?;
             junction.created_dirs.push(dir);
         }
-        junction::create(&target, link)
-            .map_err(|e| format!("Couldn't create a junction at {}: {e}", link.display()))?;
+        if let Err(e) = junction::create(&target, link) {
+            // It makes a folder before turning it into a link, and leaves the folder behind when that fails,
+            // which would then stand in the way of every build. Nothing was there before, as checked above.
+            let _ = fs::remove_dir(link);
+            return Err(format!("Couldn't create a junction at {}: {e}", link.display()));
+        }
         junction.link = link.to_path_buf();
         Ok(junction)
     }
@@ -299,6 +312,12 @@ impl Drop for TempJunction {
             let _ = fs::remove_file(record);
         }
     }
+}
+
+/// A path on a network share, which a junction can't point to.
+fn is_network_path(path: &Path) -> bool {
+    let text = path.to_string_lossy();
+    text.starts_with(r"\\?\UNC\") || (text.starts_with(r"\\") && !text.starts_with(r"\\?\"))
 }
 
 /// Whether `link` is still a junction to `target`, rather than something put in its place since.
@@ -850,6 +869,14 @@ mod tests {
         assert!(source.join("config.cpp").is_file());
         assert_eq!(fs::read_dir(&records).unwrap().count(), 0);
         fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn spots_network_paths() {
+        assert!(is_network_path(Path::new(r"\\server\mods\MyMod")));
+        assert!(is_network_path(Path::new(r"\\?\UNC\server\mods\MyMod")));
+        assert!(!is_network_path(Path::new(r"D:\Mods\MyMod")));
+        assert!(!is_network_path(Path::new(r"\\?\D:\Mods\MyMod")));
     }
 
     #[test]
