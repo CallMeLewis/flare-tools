@@ -29,10 +29,12 @@ const IDLE_DISCONNECT: Duration = Duration::from_secs(90);
 /// How often a wait on Steam checks it's still running and signed in.
 const ALIVE_INTERVAL: Duration = Duration::from_secs(1);
 /// Steam's limits. The steamworks crate panics if Steam rejects a value, so they're checked first.
+/// Steam gives text limits as buffer sizes that include the terminating null (129 for a 128-byte
+/// title), so each is a byte less than Steam's figure.
 const MAX_PREVIEW_BYTES: u64 = 1024 * 1024;
 const MAX_TITLE_BYTES: usize = 128;
-const MAX_DESCRIPTION_BYTES: usize = 8000;
-const MAX_CHANGE_NOTE_BYTES: usize = 8000;
+const MAX_DESCRIPTION_BYTES: usize = 7999;
+const MAX_CHANGE_NOTE_BYTES: usize = 7999;
 const MAX_TAG_LIST_BYTES: usize = 1024;
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -492,9 +494,10 @@ impl Steam {
             return Err("A tag contains a null character.".into());
         }
         check_text("tag list", &request.tags.join(","), MAX_TAG_LIST_BYTES)?;
+        // Paths are resolved here because the steamworks crate panics on one it can't resolve.
         let content = match request.content_path.as_deref().map(str::trim) {
             Some(path) if !Path::new(path).is_dir() => return Err(format!("{path} isn't a folder.").into()),
-            Some(path) => Some(Path::new(path).to_path_buf()),
+            Some(path) => Some(std::fs::canonicalize(path).map_err(|e| format!("Couldn't open {path}: {e}"))?),
             None if request.item_id.is_none() => return Err("Choose the folder to upload.".into()),
             None => None,
         };
@@ -504,7 +507,7 @@ impl Steam {
                 if size > MAX_PREVIEW_BYTES {
                     return Err("The preview image is over 1 MB, which is Steam's limit.".into());
                 }
-                Some(Path::new(path).to_path_buf())
+                Some(std::fs::canonicalize(path).map_err(|e| format!("Couldn't read the preview image: {e}"))?)
             }
             None => None,
         };

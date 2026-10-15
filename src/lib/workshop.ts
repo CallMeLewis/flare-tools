@@ -24,11 +24,11 @@ export const TAG_GROUPS: { name: string; tags: string[] }[] = [
   { name: "Meta", tags: ["Dependency", "Collection"] },
 ];
 
-/** Steam's limits, in bytes. Text is measured with textBytes. */
+/** Steam's limits, in bytes, as the backend checks them. Text is measured with textBytes. */
 export const LIMITS = {
   title: 128,
-  description: 8000,
-  changeNote: 8000,
+  description: 7999,
+  changeNote: 7999,
   previewBytes: 1024 * 1024,
 };
 
