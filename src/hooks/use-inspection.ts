@@ -13,7 +13,7 @@ export function useInspection(sourcePath: string, prefix: string | null, pboName
     }
     let cancelled = false;
     const timer = window.setTimeout(async () => {
-      const result = await api.inspectMod(sourcePath, prefix || null, pboName || null);
+      const result = await api.inspectMod(sourcePath, prefix || null, pboName || null).catch(() => null);
       if (!cancelled) setInspection(result);
     }, 250);
     return () => {

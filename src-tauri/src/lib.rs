@@ -61,15 +61,22 @@ fn save_settings(store: State<Store>, settings: Settings) -> Result<Settings, St
     })
 }
 
+/// Runs work that reads the disk away from the main thread, where a slow or sleeping drive would
+/// freeze the window. Commands that aren't async run on the main thread.
+async fn off_main<T: Send + 'static>(work: impl FnOnce() -> T + Send + 'static) -> Result<T, String> {
+    tauri::async_runtime::spawn_blocking(work).await.map_err(|e| e.to_string())
+}
+
 #[tauri::command]
-fn inspect_mod(
-    store: State<Store>,
+async fn inspect_mod(
+    store: State<'_, Store>,
     source_path: String,
     prefix: Option<String>,
     pbo_name: Option<String>,
-) -> Inspection {
-    let p_drive = store.snapshot().settings.p_drive;
-    inspect::inspect(&p_drive, &source_path, prefix.as_deref(), pbo_name.as_deref())
+) -> Result<Inspection, String> {
+    // Only the P: drive is needed, so the rest of the data isn't copied.
+    let p_drive = store.data.lock().map(|data| data.settings.p_drive.clone()).unwrap_or_default();
+    off_main(move || inspect::inspect(&p_drive, &source_path, prefix.as_deref(), pbo_name.as_deref())).await
 }
 
 fn new_id() -> String {
@@ -113,13 +120,13 @@ fn save_mod(store: State<Store>, config: ModConfig) -> Result<ModConfig, String>
 }
 
 #[tauri::command]
-fn remove_mod(store: State<Store>, builds: State<history::Dir>, id: String) -> Result<(), String> {
+async fn remove_mod(store: State<'_, Store>, builds: State<'_, history::Dir>, id: String) -> Result<(), String> {
     store.update(|data| {
         data.mods.retain(|m| m.id != id);
         Ok(())
     })?;
-    history::remove(&builds, &id);
-    Ok(())
+    let builds = history::Dir(builds.0.clone());
+    off_main(move || history::remove(&builds, &id)).await
 }
 
 #[tauri::command]
@@ -248,22 +255,25 @@ fn cancel_build(control: State<BuildControl>) {
 }
 
 #[tauri::command]
-fn path_exists(path: String) -> bool {
-    !path.trim().is_empty() && Path::new(path.trim()).exists()
+async fn path_exists(path: String) -> bool {
+    off_main(move || !path.trim().is_empty() && Path::new(path.trim()).exists()).await.unwrap_or(false)
 }
 
 #[tauri::command]
-fn open_folder(path: String) -> Result<(), String> {
-    let path = Path::new(path.trim());
-    let target = if path.is_dir() {
-        path.to_path_buf()
-    } else {
-        path.parent()
-            .filter(|p| p.is_dir())
-            .map(Path::to_path_buf)
-            .ok_or_else(|| format!("{} doesn't exist yet.", path.display()))?
-    };
-    Command::new("explorer").arg(target).spawn().map(|_| ()).map_err(|e| e.to_string())
+async fn open_folder(path: String) -> Result<(), String> {
+    off_main(move || {
+        let path = Path::new(path.trim());
+        let target = if path.is_dir() {
+            path.to_path_buf()
+        } else {
+            path.parent()
+                .filter(|p| p.is_dir())
+                .map(Path::to_path_buf)
+                .ok_or_else(|| format!("{} doesn't exist yet.", path.display()))?
+        };
+        Command::new("explorer").arg(target).spawn().map(|_| ()).map_err(|e| e.to_string())
+    })
+    .await?
 }
 
 #[tauri::command]
@@ -279,14 +289,17 @@ fn open_url(url: String) -> Result<(), String> {
 
 /// Reads a file for the webview, which can't load local paths itself. Used for preview images.
 #[tauri::command]
-fn read_file(path: String) -> Result<tauri::ipc::Response, String> {
-    let path = Path::new(path.trim());
-    let size = fs::metadata(path).map_err(|e| e.to_string())?.len();
-    // Previews are limited to 1 MB; anything far bigger isn't worth loading.
-    if size > 32 * 1024 * 1024 {
-        return Err("That file is too big to show.".into());
-    }
-    fs::read(path).map(tauri::ipc::Response::new).map_err(|e| e.to_string())
+async fn read_file(path: String) -> Result<tauri::ipc::Response, String> {
+    off_main(move || {
+        let path = Path::new(path.trim());
+        let size = fs::metadata(path).map_err(|e| e.to_string())?.len();
+        // Previews are limited to 1 MB; anything far bigger isn't worth loading.
+        if size > 32 * 1024 * 1024 {
+            return Err("That file is too big to show.".into());
+        }
+        fs::read(path).map(tauri::ipc::Response::new).map_err(|e| e.to_string())
+    })
+    .await?
 }
 
 #[tauri::command]
