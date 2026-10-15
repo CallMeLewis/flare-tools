@@ -211,7 +211,12 @@ export function ItemEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item?.timeUpdated]);
 
-  const set = <K extends keyof Page>(key: K, value: Page[K]) => setPage((current) => ({ ...current, [key]: value }));
+  /** A change the user made. One made after a save means the draft is theirs again, so if the refresh after the save
+      failed, a later one doesn't replace it with Steam's copy. */
+  const set = <K extends keyof Page>(key: K, value: Page[K]) => {
+    resetOnUpdate.current = false;
+    setPage((current) => ({ ...current, [key]: value }));
+  };
   const toggleTag = (tag: string, on: boolean) =>
     set("tags", on ? [...page.tags, tag] : page.tags.filter((t) => t !== tag));
 
@@ -296,7 +301,7 @@ export function ItemEditor({
     resetOnUpdate.current = true;
     try {
       const ok = await onPublish({ ...draftPage(), contentPath: null, changeNote: "" });
-      if (ok) set("previewPath", "");
+      if (ok) setPage((current) => ({ ...current, previewPath: "" }));
       else resetOnUpdate.current = false;
     } finally {
       setSaving(false);
