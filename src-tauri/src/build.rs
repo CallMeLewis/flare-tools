@@ -7,7 +7,7 @@ use std::os::windows::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::OnceLock;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicU8, Ordering};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -25,24 +25,57 @@ const POLL_INTERVAL: Duration = Duration::from_millis(250);
 const STOP_TIMEOUT: Duration = Duration::from_secs(10);
 pub const EVENT: &str = "build-event";
 
+const IDLE: u8 = 0;
+const RUNNING: u8 = 1;
+const CANCELLING: u8 = 2;
+
 #[derive(Default)]
 pub struct BuildControl {
-    pub running: AtomicBool,
-    pub cancel: AtomicBool,
+    /// Idle, running or cancelling, kept in one value so that a cancel can't land between a build
+    /// starting and it being marked as running, and be lost.
+    state: AtomicU8,
     /// Where each build's link on P: is recorded while it exists, to remove after a crash.
     pub links: PathBuf,
+}
+
+impl BuildControl {
+    pub fn new(links: PathBuf) -> Self {
+        Self { links, ..Default::default() }
+    }
+
+    /// Marks a build as started, unless one is running already.
+    pub fn start(&self) -> bool {
+        self.state.compare_exchange(IDLE, RUNNING, Ordering::SeqCst, Ordering::SeqCst).is_ok()
+    }
+
+    /// Asks the running build to stop. Does nothing when there isn't one.
+    pub fn cancel(&self) {
+        let _ = self.state.compare_exchange(RUNNING, CANCELLING, Ordering::SeqCst, Ordering::SeqCst);
+    }
+
+    pub fn cancelled(&self) -> bool {
+        self.state.load(Ordering::SeqCst) == CANCELLING
+    }
+
+    pub fn running(&self) -> bool {
+        self.state.load(Ordering::SeqCst) != IDLE
+    }
+
+    pub fn finish(&self) {
+        self.state.store(IDLE, Ordering::SeqCst);
+    }
 }
 
 /// Cancels a running build and waits for it to finish cleaning up, so closing the app doesn't
 /// leave the build's link on P: behind.
 pub fn stop(app: &AppHandle) {
     let Some(control) = app.try_state::<BuildControl>() else { return };
-    if !control.running.load(Ordering::SeqCst) {
+    if !control.running() {
         return;
     }
-    control.cancel.store(true, Ordering::SeqCst);
+    control.cancel();
     let deadline = Instant::now() + STOP_TIMEOUT;
-    while control.running.load(Ordering::SeqCst) && Instant::now() < deadline {
+    while control.running() && Instant::now() < deadline {
         thread::sleep(Duration::from_millis(50));
     }
 }
@@ -558,7 +591,7 @@ fn run_pbo_project(
         // throw away a good build and leave its PBOs unsigned.
         match child.try_wait() {
             Ok(Some(status)) => break status,
-            Ok(None) if control.cancel.load(Ordering::SeqCst) => {
+            Ok(None) if control.cancelled() => {
                 kill_tree(child.id());
                 let _ = child.wait();
                 tail.poll(reporter, true);
@@ -869,6 +902,19 @@ mod tests {
         assert!(source.join("config.cpp").is_file());
         assert_eq!(fs::read_dir(&records).unwrap().count(), 0);
         fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn a_cancel_only_reaches_a_running_build() {
+        let control = BuildControl::default();
+        control.cancel();
+        assert!(control.start(), "a cancel with nothing running is ignored");
+        assert!(!control.start(), "one build at a time");
+        control.cancel();
+        assert!(control.cancelled() && control.running());
+        control.finish();
+        assert!(!control.running() && !control.cancelled());
+        assert!(control.start() && !control.cancelled(), "the next build starts afresh");
     }
 
     #[test]

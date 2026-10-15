@@ -10,7 +10,6 @@ mod updater;
 use std::fs;
 use std::path::Path;
 use std::process::Command;
-use std::sync::atomic::Ordering;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::Serialize;
@@ -192,22 +191,21 @@ async fn mod_statuses(store: State<'_, Store>) -> Result<Vec<ModStatus>, String>
     .map_err(|e| e.to_string())
 }
 
-/// Clears the running flag even if the build panics.
+/// Marks the build as finished even if it panics.
 struct RunningGuard<'a>(&'a BuildControl);
 
 impl Drop for RunningGuard<'_> {
     fn drop(&mut self) {
-        self.0.running.store(false, Ordering::SeqCst);
+        self.0.finish();
     }
 }
 
 #[tauri::command]
 async fn build_mod(app: AppHandle, id: String) -> Result<BuildOutcome, String> {
     let control = app.state::<BuildControl>();
-    if control.running.swap(true, Ordering::SeqCst) {
+    if !control.start() {
         return Err("Another build is already running.".into());
     }
-    control.cancel.store(false, Ordering::SeqCst);
 
     let handle = app.clone();
     let outcome = tauri::async_runtime::spawn_blocking(move || {
@@ -240,18 +238,16 @@ async fn build_mod(app: AppHandle, id: String) -> Result<BuildOutcome, String> {
     .await
     .map_err(|e| e.to_string());
 
-    // The guard only exists once the blocking task starts, so make sure the flag clears.
+    // The guard only exists once the blocking task starts, so make sure the build is marked finished.
     if outcome.is_err() {
-        control.running.store(false, Ordering::SeqCst);
+        control.finish();
     }
     outcome?
 }
 
 #[tauri::command]
 fn cancel_build(control: State<BuildControl>) {
-    if control.running.load(Ordering::SeqCst) {
-        control.cancel.store(true, Ordering::SeqCst);
-    }
+    control.cancel();
 }
 
 #[tauri::command]
@@ -375,7 +371,7 @@ pub fn run() {
             app.manage(history::Dir(app.path().app_config_dir()?.join("builds")));
             let links = app.path().app_config_dir()?.join("build-links");
             build::remove_leftover_links(&links);
-            app.manage(BuildControl { links, ..Default::default() });
+            app.manage(BuildControl::new(links));
             updater::Updater::start(app.handle());
             Ok(())
         })
