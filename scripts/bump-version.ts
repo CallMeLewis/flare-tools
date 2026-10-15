@@ -25,7 +25,8 @@ if (!name) fail("Couldn't find the package name in src-tauri/Cargo.toml.");
 const edits = [
   edited("package.json", /^(\s*"version":\s*")[^"]+(")/m),
   edited("src-tauri/Cargo.toml", /^(version\s*=\s*")[^"]+(")/m),
-  edited("src-tauri/Cargo.lock", new RegExp(`^(name = "${name}"\\nversion = ")[^"]+(")`, "m")),
+  // Either line ending, since Git can check the lock file out with Windows' CRLF.
+  edited("src-tauri/Cargo.lock", new RegExp(`^(name = "${name}"\\r?\\nversion = ")[^"]+(")`, "m")),
 ];
 
 const changelog = readFileSync(path("CHANGELOG.md"), "utf8");
