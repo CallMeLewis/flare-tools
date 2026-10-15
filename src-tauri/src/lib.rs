@@ -44,6 +44,11 @@ fn get_data(store: State<Store>) -> AppData {
 }
 
 #[tauri::command]
+fn take_data_notice(store: State<Store>) -> Option<String> {
+    store.take_notice()
+}
+
+#[tauri::command]
 fn detect_tools() -> Settings {
     detect::detect_settings()
 }
@@ -350,6 +355,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             get_data,
+            take_data_notice,
             detect_tools,
             save_settings,
             inspect_mod,

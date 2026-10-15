@@ -19,6 +19,7 @@ import {
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useSteamPresence } from "@/hooks/use-steam-presence";
+import { api } from "@/lib/api";
 import { useTheme } from "@/lib/theme";
 import { useUiScale } from "@/lib/ui-scale";
 import { BuildTool } from "@/tools/build-tool";
@@ -60,6 +61,12 @@ export default function App() {
   useEffect(() => {
     if (steam === "signedIn") setSteamReady(true);
   }, [steam]);
+
+  useEffect(() => {
+    void api.takeDataNotice().then((notice) => {
+      if (notice) toast.warning("Your mods and settings couldn't be read", { description: notice, duration: Infinity });
+    });
+  }, []);
 
   useEffect(() => {
     if (!steamReady || !steam) return;
