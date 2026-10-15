@@ -33,12 +33,19 @@ jobs:
     name: Check the version
     runs-on: ubuntu-24.04
     timeout-minutes: 5
+    outputs:
+      commit: ${{ steps.commit.outputs.sha }}
     steps:
       - uses: actions/checkout@v5
         with:
           ref: ${{ env.TAG }}
           fetch-depth: 0
           persist-credentials: false
+      # Build and publish check out this commit rather than the tag, so a tag moved during the run can't change what
+      # ships after it was checked.
+      - name: Find the tag's commit
+        id: commit
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
       - name: Tag matches package.json
         run: |
           version=$(node -p 'require("./package.json").version')
@@ -60,7 +67,7 @@ jobs:
     needs: version
     uses: ./.github/workflows/build.yml
     with:
-      ref: ${{ inputs.tag || github.ref_name }}
+      ref: ${{ needs.version.outputs.commit }}
       sign: true
     secrets:
       CERTUM_USERNAME: ${{ secrets.CERTUM_USERNAME }}
@@ -68,7 +75,7 @@ jobs:
 
   publish:
     name: Publish
-    needs: build
+    needs: [version, build]
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
@@ -76,7 +83,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ${{ env.TAG }}
+          ref: ${{ needs.version.outputs.commit }}
           persist-credentials: false
       # A tag built again publishes with the release script from main, so a fix to it made since the tag is used.
       - name: Use the release scripts from main
