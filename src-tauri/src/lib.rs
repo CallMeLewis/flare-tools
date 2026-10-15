@@ -216,7 +216,10 @@ async fn build_mod(app: AppHandle, id: String) -> Result<BuildOutcome, String> {
         let config = data.mods.iter().find(|m| m.id == id).cloned().ok_or("That mod no longer exists.")?;
         let started_at = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0);
         let (outcome, capture) = build::build(&handle, &control, &data.settings, &config);
-        if let Err(error) = history::save(&handle.state::<history::Dir>(), &id, started_at, &outcome, capture) {
+        // A mod removed while it built has had its history deleted, which saving now would bring back.
+        let listed = store.data.lock().map(|data| data.mods.iter().any(|m| m.id == id)).unwrap_or(true);
+        if listed && let Err(error) = history::save(&handle.state::<history::Dir>(), &id, started_at, &outcome, capture)
+        {
             eprintln!("Couldn't save the build record: {error}");
         }
         if !outcome.cancelled {
