@@ -199,7 +199,8 @@ export function ItemEditor({
   // Set before saving the page, so the draft restarts from what Steam now has once it lands.
   const resetOnUpdate = useRef(false);
 
-  useEffect(() => onDirtyChange(dirty && !locked), [dirty, locked, onDirtyChange]);
+  // Still dirty while saving: the edits aren't safe until Steam has accepted them.
+  useEffect(() => onDirtyChange(dirty), [dirty, onDirtyChange]);
 
   // Pick up Steam's copy when it changes, unless that would throw away edits that haven't been saved.
   // Keyed on the update time rather than the item so refreshing the list leaves edits alone.

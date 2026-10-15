@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { PlusIcon, RefreshCwIcon, UnplugIcon, UploadCloudIcon } from "lucide-react";
 import { toast } from "sonner";
 
@@ -48,8 +48,13 @@ export function WorkshopTool({ active, steamOnline, onBusyChange }: WorkshopTool
   const [mods, setMods] = useState<ModConfig[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(() => localStorage.getItem(SELECTED_KEY));
   const [refreshing, setRefreshing] = useState(false);
-  // The key of the item being published ("new" while creating one) and how far it's got.
-  const [publishing, setPublishing] = useState<{ key: string; progress: PublishProgress } | null>(null);
+  // The key of the item being published ("new" while creating one), how far it's got, and whether it's sending
+  // the page as edited, so leaving the page mid-save can say what's at stake.
+  const [publishing, setPublishing] = useState<{
+    key: string;
+    progress: PublishProgress;
+    sendsEdits: boolean;
+  } | null>(null);
   // Whether the open editor has unsaved edits, and where the user asked to go while it did.
   const [dirty, setDirty] = useState(false);
   const [pendingId, setPendingId] = useState<string | null | undefined>(undefined);
@@ -98,6 +103,9 @@ export function WorkshopTool({ active, steamOnline, onBusyChange }: WorkshopTool
   }
 
   const editorKey = showingNew ? NEW : (selected?.id ?? null);
+  // Read once a publish lands, to tell whether the user is still on the item it was for.
+  const editorKeyRef = useRef(editorKey);
+  editorKeyRef.current = editorKey;
 
   /** Moves to another item, checking first if that would throw away edits. */
   function requestSelect(id: string | null) {
@@ -110,11 +118,14 @@ export function WorkshopTool({ active, steamOnline, onBusyChange }: WorkshopTool
   async function publish(request: PublishRequest): Promise<boolean> {
     const key = request.itemId ?? NEW;
     const stage = !request.itemId ? "creating" : request.contentPath ? "preparing" : "committing";
-    setPublishing({ key, progress: { itemId: request.itemId, stage, processed: 0, total: 0 } });
+    // An upload to an existing item sends the page as Steam has it, not the edits.
+    const sendsEdits = !request.itemId || !request.contentPath;
+    setPublishing({ key, progress: { itemId: request.itemId, stage, processed: 0, total: 0 }, sendsEdits });
     try {
       const outcome = await api.publishItem(request);
       await refresh();
-      select(outcome.itemId);
+      // A new item moves to its own page, unless the user has gone elsewhere in the meantime.
+      if (key === NEW && editorKeyRef.current === NEW) select(outcome.itemId);
       if (outcome.needsAgreement) {
         toast.warning(`${request.title} is published, but hidden`, {
           description: "Steam won't show it until you accept the Workshop legal agreement.",
@@ -140,6 +151,8 @@ export function WorkshopTool({ active, steamOnline, onBusyChange }: WorkshopTool
   }
 
   const leavingName = showingNew ? "the new item" : (selected?.title || "this item");
+  // The edits are on their way to Steam, so leaving only loses them if Steam turns them down.
+  const leavingWhileSaving = publishing?.key === editorKey && publishing.sendsEdits;
 
   return (
     <div className={cn("flex min-w-0 flex-1 overflow-hidden", !active && "hidden")}>
@@ -229,11 +242,15 @@ export function WorkshopTool({ active, steamOnline, onBusyChange }: WorkshopTool
       <AlertDialog open={pendingId !== undefined} onOpenChange={(open) => !open && setPendingId(undefined)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Discard changes to {leavingName}?</AlertDialogTitle>
+            <AlertDialogTitle>
+              {leavingWhileSaving ? `Leave ${leavingName} while it's saving?` : `Discard changes to ${leavingName}?`}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              {showingNew
-                ? "Nothing has been published yet, so the new item will be lost."
-                : "The page edits haven't been saved, so leaving throws them away."}
+              {leavingWhileSaving
+                ? "Steam hasn't accepted the changes yet. If it turns them down, they'll be lost."
+                : showingNew
+                  ? "Nothing has been published yet, so the new item will be lost."
+                  : "The page edits haven't been saved, so leaving throws them away."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -245,7 +262,7 @@ export function WorkshopTool({ active, steamOnline, onBusyChange }: WorkshopTool
                 setPendingId(undefined);
               }}
             >
-              Discard
+              {leavingWhileSaving ? "Leave" : "Discard"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
