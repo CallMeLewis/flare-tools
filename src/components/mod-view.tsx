@@ -167,10 +167,12 @@ export function ModView({
             <FolderOpenIcon data-icon="inline-start" />
             Open output
           </Button>
-          <Button variant="outline" onClick={onEdit} disabled={running}>
-            <PencilIcon data-icon="inline-start" />
-            Edit
-          </Button>
+          <DisabledHint reason={running ? "The mod can be edited once its build finishes." : null}>
+            <Button variant="outline" onClick={onEdit} disabled={running}>
+              <PencilIcon data-icon="inline-start" />
+              Edit
+            </Button>
+          </DisabledHint>
           {/* Cancel sits beside Build rather than replacing it, so a double-click on Build
               can't land on Cancel. */}
           {running && (

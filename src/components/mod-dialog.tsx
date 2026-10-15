@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
+import { DisabledHint } from "@/components/disabled-hint";
 import { ModPlan, prefixSourceLabel } from "@/components/mod-plan";
 import { PathInput } from "@/components/path-input";
 import {
@@ -292,9 +293,21 @@ export function ModDialog({ open, onOpenChange, settings, mod, onSaved, onRemove
             <Button variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button onClick={save} disabled={saving || !draft.sourcePath.trim() || !draft.outputPath.trim()}>
-              {editing ? "Save changes" : "Add mod"}
-            </Button>
+            <DisabledHint
+              reason={
+                saving
+                  ? null
+                  : !draft.sourcePath.trim()
+                    ? "Choose the mod's source folder."
+                    : !draft.outputPath.trim()
+                      ? "Choose an output folder."
+                      : null
+              }
+            >
+              <Button onClick={save} disabled={saving || !draft.sourcePath.trim() || !draft.outputPath.trim()}>
+                {editing ? "Save changes" : "Add mod"}
+              </Button>
+            </DisabledHint>
           </div>
         </DialogFooter>
       </DialogContent>

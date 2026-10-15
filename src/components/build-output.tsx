@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { CheckIcon, ChevronRightIcon, CopyIcon, MinusIcon, XIcon } from "lucide-react";
 import { toast } from "sonner";
 
+import { DisabledHint } from "@/components/disabled-hint";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import type { BuildSession } from "@/hooks/use-build-sessions";
@@ -116,9 +117,11 @@ export function CopyLogButton({ session }: { session: BuildSession }) {
   }
 
   return (
-    <Button variant="ghost" size="xs" onClick={() => void copy()} disabled={session.log.length === 0}>
-      <CopyIcon data-icon="inline-start" />
-      Copy
-    </Button>
+    <DisabledHint reason={session.log.length === 0 ? "There's no output to copy yet." : null}>
+      <Button variant="ghost" size="xs" onClick={() => void copy()} disabled={session.log.length === 0}>
+        <CopyIcon data-icon="inline-start" />
+        Copy
+      </Button>
+    </DisabledHint>
   );
 }

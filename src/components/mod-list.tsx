@@ -1,5 +1,6 @@
 import { HammerIcon, PlusIcon } from "lucide-react";
 
+import { DisabledHint } from "@/components/disabled-hint";
 import { Badge } from "@/components/ui/badge";
 import { SidebarFooter } from "@/components/sidebar-footer";
 import { Button } from "@/components/ui/button";
@@ -86,10 +87,12 @@ export function ModList({
 
       {changedCount > 1 && (
         <div className="border-t p-2">
-          <Button variant="secondary" className="w-full justify-start" onClick={onBuildChanged} disabled={busy}>
-            <HammerIcon data-icon="inline-start" />
-            Build {changedCount} changed mods
-          </Button>
+          <DisabledHint reason={busy ? "A build is running. pboProject runs one build at a time." : null}>
+            <Button variant="secondary" className="w-full justify-start" onClick={onBuildChanged} disabled={busy}>
+              <HammerIcon data-icon="inline-start" />
+              Build {changedCount} changed mods
+            </Button>
+          </DisabledHint>
         </div>
       )}
 
