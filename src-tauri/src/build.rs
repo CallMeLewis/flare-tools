@@ -647,18 +647,23 @@ fn run_pbo_project(
     Ok(())
 }
 
-fn remove_signatures(addons: &Path, pbo_file: &str) -> Vec<PathBuf> {
+/// A PBO's signatures, whatever key made them: `<pbo>.<key>.bisign` next to it.
+fn signatures(addons: &Path, pbo_file: &str) -> Vec<PathBuf> {
     let prefix = format!("{}.", pbo_file.to_ascii_lowercase());
-    let mut removed = Vec::new();
-    if let Ok(entries) = fs::read_dir(addons) {
-        for entry in entries.flatten() {
+    fs::read_dir(addons)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .filter(|entry| {
             let name = entry.file_name().to_string_lossy().to_ascii_lowercase();
-            if name.starts_with(&prefix) && name.ends_with(".bisign") && fs::remove_file(entry.path()).is_ok() {
-                removed.push(entry.path());
-            }
-        }
-    }
-    removed
+            name.starts_with(&prefix) && name.ends_with(".bisign")
+        })
+        .map(|entry| entry.path())
+        .collect()
+}
+
+fn remove_signatures(addons: &Path, pbo_file: &str) -> Vec<PathBuf> {
+    signatures(addons, pbo_file).into_iter().filter(|path| fs::remove_file(path).is_ok()).collect()
 }
 
 fn sign_pbos(
@@ -705,8 +710,11 @@ fn sign_pbos(
         {
             emit_log_line(reporter, line);
         }
-        let signature = pbo_path.with_file_name(format!("{}.pbo.{key_name}.bisign", pbo.name));
-        if !result.status.success() || !signature.is_file() {
+        // DSSignFile names the signature after the key's own name, which needn't match its file's,
+        // so look for whichever it wrote. The PBO's old signatures were removed after packing.
+        let signed =
+            pbo_path.parent().is_some_and(|addons| !signatures(addons, &format!("{}.pbo", pbo.name)).is_empty());
+        if !result.status.success() || !signed {
             return Err(Failure::new(Step::Sign, format!("DSSignFile couldn't sign {}.pbo.", pbo.name)));
         }
         pbo.signed = true;
