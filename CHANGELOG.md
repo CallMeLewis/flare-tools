@@ -2,6 +2,10 @@
 
 What changed in each version of Flare Tools, newest first.
 
+## 0.3.2 - 2026-10-17
+
+- Fixed building a mod removing the PBOs of other mods built into the same output folder, such as a mod's client and server halves added as two mods.
+
 ## 0.3.1 - 2026-10-17
 
 - Action needed: uploading a new version left out the meta.cpp that tells servers the mod's Workshop ID, so servers running it showed the mod with an ID of 0 and launchers couldn't download it; upload a new version of any item you've updated with Flare Tools to put it back.
