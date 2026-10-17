@@ -47,6 +47,20 @@ fn child_dir(dir: &Path, name: &str) -> Option<std::path::PathBuf> {
         .map(|e| e.path())
 }
 
+/// Names what's in `addons` besides PBOs and their signatures, which is all DayZ loads from it.
+fn unloaded(addons: &Path) -> Option<String> {
+    let mut names: Vec<String> = fs::read_dir(addons)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| !p.is_file() || !(has_extension(p, "pbo") || has_extension(p, "bisign")))
+        .filter_map(|p| p.file_name().map(|s| s.to_string_lossy().into_owned()))
+        .collect();
+    names.sort_by_key(|n| n.to_lowercase());
+    (!names.is_empty()).then(|| format!("DayZ won't load {} from the addons folder.", names.join(", ")))
+}
+
 fn count(dir: &Path, summary: &mut ContentSummary) {
     let Ok(entries) = fs::read_dir(dir) else { return };
     for entry in entries.flatten() {
@@ -86,6 +100,9 @@ pub fn inspect(path: &str) -> ContentSummary {
         None => summary.warnings.push("There's no addons folder.".into()),
         Some(_) if summary.pbos.is_empty() => summary.warnings.push("The addons folder has no PBOs.".into()),
         Some(dir) => {
+            if let Some(warning) = unloaded(dir) {
+                summary.warnings.push(warning);
+            }
             let signatures: Vec<String> = fs::read_dir(dir)
                 .into_iter()
                 .flatten()
@@ -112,4 +129,24 @@ pub fn inspect(path: &str) -> ContentSummary {
         }
     }
     summary
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn names_what_dayz_will_not_load_from_addons() {
+        let root = std::env::temp_dir().join(format!("flare-tools-content-{}", std::process::id()));
+        let addons = root.join("addons");
+        fs::create_dir_all(addons.join("old")).unwrap();
+        for file in ["Mod.pbo", "Mod.pbo.key.bisign", "mod.cpp"] {
+            fs::write(addons.join(file), "").unwrap();
+        }
+
+        let summary = inspect(&root.to_string_lossy());
+        assert!(summary.warnings.contains(&"DayZ won't load mod.cpp, old from the addons folder.".to_string()));
+
+        fs::remove_dir_all(root).unwrap();
+    }
 }
