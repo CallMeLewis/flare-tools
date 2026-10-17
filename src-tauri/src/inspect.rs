@@ -404,7 +404,7 @@ fn prefix_from_configs(source: &Path) -> Option<(String, String)> {
     best.map(|(_, prefix, example)| (prefix, example))
 }
 
-fn same_folder(a: &Path, b: &Path) -> bool {
+pub fn same_folder(a: &Path, b: &Path) -> bool {
     match (fs::canonicalize(a), fs::canonicalize(b)) {
         (Ok(a), Ok(b)) => a.to_string_lossy().eq_ignore_ascii_case(&b.to_string_lossy()),
         _ => false,

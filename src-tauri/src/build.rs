@@ -718,16 +718,43 @@ fn signatures(addons: &Path, pbo_file: &str) -> Vec<PathBuf> {
         .collect()
 }
 
-/// The files in `addons` other than the PBOs a build just packed. Folders are left to the upload's checks.
-fn stale_files(addons: &Path, built: &[String]) -> Vec<PathBuf> {
+/// The PBOs that the other mods built into the same `@mod` folder produce, such as a mod's client and server
+/// halves, so building one doesn't remove the other's. Counts what each would pack now and what it last built.
+fn shared_pbos(settings: &Settings, m: &ModConfig, mods: &[ModConfig], output: &Path) -> Vec<String> {
+    mods.iter()
+        .filter(|other| other.id != m.id && !other.output_path.trim().is_empty())
+        .filter(|other| inspect::same_folder(Path::new(other.output_path.trim()), output))
+        .flat_map(|other| {
+            let plan = inspect::inspect(
+                &settings.p_drive,
+                &other.source_path,
+                other.prefix.as_deref(),
+                other.pbo_name.as_deref(),
+            );
+            let last_built = other.last_build.iter().flat_map(|build| build.pbos.clone());
+            plan.pbos.into_iter().map(|pbo| pbo.name).chain(last_built)
+        })
+        .map(|name| format!("{name}.pbo"))
+        .collect()
+}
+
+/// The files in `addons` other than the PBOs a build just packed, and the PBOs and signatures of other mods built
+/// into the same folder. Folders are left to the upload's checks.
+fn stale_files(addons: &Path, built: &[String], shared: &[String]) -> Vec<PathBuf> {
+    let is_built = |name: &str| built.iter().any(|pbo| pbo.eq_ignore_ascii_case(name));
     let mut stale: Vec<PathBuf> = fs::read_dir(addons)
         .into_iter()
         .flatten()
         .flatten()
         .filter(|entry| entry.file_type().is_ok_and(|kind| kind.is_file()))
         .filter(|entry| {
-            let name = entry.file_name().to_string_lossy().into_owned();
-            !built.iter().any(|pbo| pbo.eq_ignore_ascii_case(&name))
+            let name = entry.file_name().to_string_lossy().to_ascii_lowercase();
+            // A PBO this build packed is new, so a signature only survives for another mod's PBO.
+            let shared = shared.iter().filter(|pbo| !is_built(pbo)).any(|pbo| {
+                let pbo = pbo.to_ascii_lowercase();
+                name == pbo || (name.starts_with(&format!("{pbo}.")) && name.ends_with(".bisign"))
+            });
+            !is_built(&name) && !shared
         })
         .map(|entry| entry.path())
         .collect();
@@ -804,6 +831,7 @@ fn build_steps(
     control: &BuildControl,
     settings: &Settings,
     m: &ModConfig,
+    mods: &[ModConfig],
     pbos: &mut Vec<BuiltPbo>,
 ) -> Result<(), Failure> {
     // Prepare
@@ -899,9 +927,11 @@ fn build_steps(
     pbos.sort_by(|a, b| a.name.cmp(&b.name));
 
     // Everything else in addons goes, so nothing stale is uploaded with the mod: DayZ loads only PBOs and their
-    // signatures from it, and a rebuilt PBO invalidates every signature made for the old one.
+    // signatures from it, and a rebuilt PBO invalidates every signature made for the old one. Other mods built into
+    // the same folder keep theirs.
     let built: Vec<String> = pbos.iter().map(|p| format!("{}.pbo", p.name)).collect();
-    for path in stale_files(&addons, &built) {
+    let shared = shared_pbos(settings, m, mods, &output);
+    for path in stale_files(&addons, &built, &shared) {
         let name = path.file_name().unwrap_or_default().to_string_lossy().into_owned();
         let signature = name.to_ascii_lowercase().ends_with(".bisign")
             && built.iter().any(|pbo| name.to_ascii_lowercase().starts_with(&format!("{}.", pbo.to_ascii_lowercase())));
@@ -970,12 +1000,19 @@ fn add_mod_cpp(reporter: &mut Reporter, m: &ModConfig, output: &Path) -> Result<
     Ok(())
 }
 
-/// Runs a build, returning its outcome and everything it showed along the way.
-pub fn build(app: &AppHandle, control: &BuildControl, settings: &Settings, m: &ModConfig) -> (BuildOutcome, Capture) {
+/// Runs a build, returning its outcome and everything it showed along the way. `mods` is every saved mod, so the
+/// build can leave alone the PBOs of others that share its output folder.
+pub fn build(
+    app: &AppHandle,
+    control: &BuildControl,
+    settings: &Settings,
+    m: &ModConfig,
+    mods: &[ModConfig],
+) -> (BuildOutcome, Capture) {
     let timer = Instant::now();
     let mut reporter = Reporter { app, mod_id: m.id.clone(), warnings: Vec::new(), capture: RefCell::default() };
     let mut pbos = Vec::new();
-    let result = build_steps(&mut reporter, control, settings, m, &mut pbos);
+    let result = build_steps(&mut reporter, control, settings, m, mods, &mut pbos);
     let duration_ms = timer.elapsed().as_millis() as u64;
 
     let (ok, cancelled, error) = match result {
@@ -1111,9 +1148,24 @@ mod tests {
             fs::write(addons.join(file), "").unwrap();
         }
 
-        let stale = stale_files(&addons, &["mod.pbo".into()]);
+        let stale = stale_files(&addons, &["mod.pbo".into()], &[]);
         let names: Vec<_> = stale.iter().map(|p| p.file_name().unwrap().to_string_lossy()).collect();
         assert_eq!(names, ["Mod.pbo.key.bisign", "Old.pbo", "mod.cpp"]);
+
+        fs::remove_dir_all(addons).unwrap();
+    }
+
+    #[test]
+    fn keeps_the_pbos_of_other_mods_built_into_the_same_folder() {
+        let addons = std::env::temp_dir().join(format!("flare-tools-shared-{}", std::process::id()));
+        fs::create_dir_all(&addons).unwrap();
+        for file in ["Client.pbo", "Client.pbo.key.bisign", "Server.pbo", "Server.pbo.key.bisign", "Old.pbo"] {
+            fs::write(addons.join(file), "").unwrap();
+        }
+
+        let stale = stale_files(&addons, &["Server.pbo".into()], &["client.pbo".into(), "Server.pbo".into()]);
+        let names: Vec<_> = stale.iter().map(|p| p.file_name().unwrap().to_string_lossy()).collect();
+        assert_eq!(names, ["Old.pbo", "Server.pbo.key.bisign"]);
 
         fs::remove_dir_all(addons).unwrap();
     }
