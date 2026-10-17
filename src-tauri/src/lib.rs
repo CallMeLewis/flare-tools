@@ -3,6 +3,7 @@ mod content;
 mod detect;
 mod history;
 mod inspect;
+mod meta_cpp;
 mod mod_cpp;
 mod steam;
 mod store;

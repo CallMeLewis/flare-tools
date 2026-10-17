@@ -2,7 +2,7 @@ use std::path::Path;
 use std::sync::Mutex;
 use std::sync::mpsc::{self, RecvTimeoutError, Sender};
 use std::thread;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime};
 
 use serde::{Deserialize, Serialize};
 use steamworks::{
@@ -538,6 +538,13 @@ impl Steam {
         };
         let item_id = Some(id.0.to_string());
         let failed = |message: String| PublishError { message, item_id: created.then(|| id.0.to_string()) };
+
+        // Servers report the mod's Workshop ID from meta.cpp, and the upload replaces every file, so it goes in each
+        // time, as DayZ Publisher does.
+        if let Some(path) = &content {
+            std::fs::write(path.join("meta.cpp"), crate::meta_cpp::create(id.0, title, SystemTime::now()))
+                .map_err(|e| failed(format!("Couldn't write meta.cpp into the folder: {e}")))?;
+        }
 
         // Steam leaves anything not set on the update as it is.
         let mut update = ugc.start_item_update(DAYZ, id);

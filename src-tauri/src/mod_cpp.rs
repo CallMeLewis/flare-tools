@@ -18,7 +18,7 @@ const FIELDS: [&str; 11] = [
     "version",
 ];
 
-fn quoted(value: &str) -> String {
+pub(crate) fn quoted(value: &str) -> String {
     format!("\"{}\"", value.replace('"', "\"\""))
 }
 
