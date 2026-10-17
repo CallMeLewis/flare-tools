@@ -1,5 +1,5 @@
 use std::cell::RefCell;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::fs::{self, File};
 use std::io::{Read, Seek, SeekFrom};
 use std::os::windows::io::AsRawHandle;
@@ -718,8 +718,21 @@ fn signatures(addons: &Path, pbo_file: &str) -> Vec<PathBuf> {
         .collect()
 }
 
-fn remove_signatures(addons: &Path, pbo_file: &str) -> Vec<PathBuf> {
-    signatures(addons, pbo_file).into_iter().filter(|path| fs::remove_file(path).is_ok()).collect()
+/// The files in `addons` other than the PBOs a build just packed. Folders are left to the upload's checks.
+fn stale_files(addons: &Path, built: &[String]) -> Vec<PathBuf> {
+    let mut stale: Vec<PathBuf> = fs::read_dir(addons)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .filter(|entry| entry.file_type().is_ok_and(|kind| kind.is_file()))
+        .filter(|entry| {
+            let name = entry.file_name().to_string_lossy().into_owned();
+            !built.iter().any(|pbo| pbo.eq_ignore_ascii_case(&name))
+        })
+        .map(|entry| entry.path())
+        .collect();
+    stale.sort();
+    stale
 }
 
 fn sign_pbos(
@@ -885,21 +898,17 @@ fn build_steps(
     }
     pbos.sort_by(|a, b| a.name.cmp(&b.name));
 
-    let expected: HashSet<String> = plan.pbos.iter().map(|p| p.name.to_ascii_lowercase()).collect();
-    for path in snapshot(&addons, "pbo").into_keys() {
-        let name = stem(&path);
-        if !expected.contains(&name.to_ascii_lowercase()) {
-            reporter.warn(format!("addons\\{name}.pbo wasn't produced by this build. It has been left in place."));
-        }
-    }
-
-    // A rebuilt PBO invalidates every signature made for the old one.
-    for pbo in pbos.iter() {
-        for removed in remove_signatures(&addons, &format!("{}.pbo", pbo.name)) {
-            reporter.log(
-                Level::Info,
-                format!("Removed old signature {}", removed.file_name().unwrap_or_default().to_string_lossy()),
-            );
+    // Everything else in addons goes, so nothing stale is uploaded with the mod: DayZ loads only PBOs and their
+    // signatures from it, and a rebuilt PBO invalidates every signature made for the old one.
+    let built: Vec<String> = pbos.iter().map(|p| format!("{}.pbo", p.name)).collect();
+    for path in stale_files(&addons, &built) {
+        let name = path.file_name().unwrap_or_default().to_string_lossy().into_owned();
+        let signature = name.to_ascii_lowercase().ends_with(".bisign")
+            && built.iter().any(|pbo| name.to_ascii_lowercase().starts_with(&format!("{}.", pbo.to_ascii_lowercase())));
+        match fs::remove_file(&path) {
+            Ok(()) if signature => reporter.log(Level::Info, format!("Removed old signature {name}")),
+            Ok(()) => reporter.log(Level::Info, format!("Removed addons\\{name}, which this build didn't produce")),
+            Err(e) => reporter.warn(format!("Couldn't remove addons\\{name}: {e}")),
         }
     }
     reporter.step(Step::Pack, StepStatus::Done);
@@ -1092,6 +1101,21 @@ mod tests {
 
         assert!(link.is_dir());
         fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn finds_everything_in_addons_but_the_built_pbos() {
+        let addons = std::env::temp_dir().join(format!("flare-tools-addons-{}", std::process::id()));
+        fs::create_dir_all(addons.join("folder")).unwrap();
+        for file in ["Mod.pbo", "Mod.pbo.key.bisign", "Old.pbo", "mod.cpp"] {
+            fs::write(addons.join(file), "").unwrap();
+        }
+
+        let stale = stale_files(&addons, &["mod.pbo".into()]);
+        let names: Vec<_> = stale.iter().map(|p| p.file_name().unwrap().to_string_lossy()).collect();
+        assert_eq!(names, ["Mod.pbo.key.bisign", "Old.pbo", "mod.cpp"]);
+
+        fs::remove_dir_all(addons).unwrap();
     }
 
     #[test]

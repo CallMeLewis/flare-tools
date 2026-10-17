@@ -6,7 +6,9 @@ What the Build and Workshop tools do behind the scenes, and why.
 
 1. Works out the prefix and the PBOs the mod will produce.
 2. Runs pboProject, with binarising and PNG conversion turned on or off per mod, and streams its log into the app.
-3. Renames the PBO if you've given it a different name.
+3. Renames the PBO if you've given it a different name, then removes everything else from the `addons` folder, such
+   as old PBOs, their signatures and stray files, so nothing stale is uploaded. Folders in it are left alone, and the
+   Workshop upload warns about them.
 4. Signs each PBO with DSSignFile and copies the matching `.bikey` into the mod's `keys` folder, if signing is on.
 5. Puts a `mod.cpp` in the `@mod` folder, if that option is on: the mod's own, with its `version` set to the one in
    the mod's `CfgMods` class so the two always agree, or one written from that class if the mod hasn't got one. The
