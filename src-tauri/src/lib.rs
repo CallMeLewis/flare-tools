@@ -7,7 +7,6 @@ mod meta_cpp;
 mod mod_cpp;
 mod steam;
 mod store;
-mod updater;
 
 use std::fs;
 use std::path::Path;
@@ -398,8 +397,14 @@ pub fn run() {
     }));
     builder
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_updater::Builder::new().build())
-        .manage(updater::Updater::new())
+        .plugin(tauri_plugin_flare_updater::updater())
+        .plugin(
+            // Must match the feed in scripts/publish-update.ts.
+            tauri_plugin_flare_updater::Builder::new("Flare-Tools", "https://updates.darkzone.dev/flare-tools/")
+                // The installer closes the app straight away, so let a build clean up first.
+                .on_before_exit(build::stop)
+                .build(),
+        )
         .setup(|app| {
             let path = app.path().app_config_dir()?.join("data.json");
             app.manage(Store::load(path));
@@ -407,7 +412,6 @@ pub fn run() {
             let links = app.path().app_config_dir()?.join("build-links");
             build::remove_leftover_links(&links);
             app.manage(BuildControl::new(links));
-            updater::Updater::start(app.handle());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -433,13 +437,6 @@ pub fn run() {
             workshop_items,
             inspect_content,
             publish_item,
-            updater::update_status,
-            updater::check_for_updates,
-            updater::download_update,
-            updater::install_update,
-            updater::update_settings,
-            updater::set_auto_update_check,
-            updater::set_update_channel,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

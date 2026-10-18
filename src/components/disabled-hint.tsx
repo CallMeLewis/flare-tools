@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@flare/ui/ui/tooltip";
 
 interface DisabledHintProps {
   /** Why the control is disabled, or null when it isn't. */
@@ -16,7 +16,7 @@ export function DisabledHint({ reason, children }: DisabledHintProps) {
   if (!reason) return <>{children}</>;
   return (
     <Tooltip>
-      <TooltipTrigger render={<span className="inline-flex" />}>{children}</TooltipTrigger>
+      <TooltipTrigger asChild><span className="inline-flex">{children}</span></TooltipTrigger>
       <TooltipContent side="bottom">{reason}</TooltipContent>
     </Tooltip>
   );

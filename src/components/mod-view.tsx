@@ -17,14 +17,14 @@ import { BuildLog, BuildSteps, CopyLogButton } from "@/components/build-output";
 import { DisabledHint } from "@/components/disabled-hint";
 import { ModPlan, prefixSourceLabel } from "@/components/mod-plan";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button } from "@flare/ui/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Field, FieldContent, FieldDescription, FieldTitle } from "@/components/ui/field";
 import { Kbd } from "@/components/ui/kbd";
 import { Spinner } from "@/components/ui/spinner";
-import { Switch } from "@/components/ui/switch";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Switch } from "@flare/ui/ui/switch";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@flare/ui/ui/tooltip";
 import type { BuildSession } from "@/hooks/use-build-sessions";
 import { useBuildHistory, useSavedBuild } from "@/hooks/use-build-history";
 import { useInspection } from "@/hooks/use-inspection";
@@ -74,16 +74,14 @@ function RecordIcon({ record }: { record: BuildRecord }) {
 function InfoHint({ text }: { text: string }) {
   return (
     <Tooltip>
-      <TooltipTrigger
-        render={
-          <button
-            type="button"
-            aria-label={text}
-            className="flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
-          />
-        }
-      >
-        <InfoIcon className="size-3.5" aria-hidden />
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          aria-label={text}
+          className="flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+        >
+          <InfoIcon className="size-3.5" aria-hidden />
+        </button>
       </TooltipTrigger>
       <TooltipContent side="right">{text}</TooltipContent>
     </Tooltip>

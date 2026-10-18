@@ -1,8 +1,8 @@
 import { open } from "@tauri-apps/plugin-dialog";
 import { FolderOpenIcon } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Button } from "@flare/ui/ui/button";
+import { Input } from "@flare/ui/ui/input";
 
 interface PathInputProps {
   id: string;

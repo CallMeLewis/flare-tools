@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { ModDialog } from "@/components/mod-dialog";
 import { ModList } from "@/components/mod-list";
 import { ModView } from "@/components/mod-view";
-import { Button } from "@/components/ui/button";
+import { Button } from "@flare/ui/ui/button";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Spinner } from "@/components/ui/spinner";
 import { useBuildSessions } from "@/hooks/use-build-sessions";

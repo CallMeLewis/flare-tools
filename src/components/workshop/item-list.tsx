@@ -1,10 +1,9 @@
 import { ImageIcon, PlusIcon, RefreshCwIcon } from "lucide-react";
 
 import { DisabledHint } from "@/components/disabled-hint";
-import { SidebarFooter } from "@/components/sidebar-footer";
-import { Button } from "@/components/ui/button";
+import { Button } from "@flare/ui/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@flare/ui/ui/tooltip";
 import type { SteamStatus, WorkshopItem } from "@/lib/api";
 import { timeAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -54,30 +53,26 @@ export function ItemList({ steam, items, selectedId, onSelect, onNew, onRefresh,
           {/* Refresh stays available when Steam can't be reached, since it's how to try again. */}
           <DisabledHint reason={!refreshing && (!steam || offline) ? steamHint : null}>
             <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    onClick={onRefresh}
-                    disabled={!steam || refreshing || offline}
-                    aria-label="Refresh from Steam"
-                  />
-                }
-              >
-                <RefreshCwIcon className={cn(refreshing && "animate-spin motion-reduce:animate-none")} />
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={onRefresh}
+                  disabled={!steam || refreshing || offline}
+                  aria-label="Refresh from Steam"
+                >
+                  <RefreshCwIcon className={cn(refreshing && "animate-spin motion-reduce:animate-none")} />
+                </Button>
               </TooltipTrigger>
               <TooltipContent side="bottom">Refresh from Steam</TooltipContent>
             </Tooltip>
           </DisabledHint>
           <DisabledHint reason={ready ? null : steamHint}>
             <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button variant="ghost" size="icon-sm" onClick={onNew} disabled={!ready} aria-label="New Workshop item" />
-                }
-              >
-                <PlusIcon />
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon-sm" onClick={onNew} disabled={!ready} aria-label="New Workshop item">
+                  <PlusIcon />
+                </Button>
               </TooltipTrigger>
               <TooltipContent side="bottom">New Workshop item</TooltipContent>
             </Tooltip>
@@ -141,8 +136,6 @@ export function ItemList({ steam, items, selectedId, onSelect, onNew, onRefresh,
           </ul>
         )}
       </nav>
-
-      <SidebarFooter />
     </aside>
   );
 }

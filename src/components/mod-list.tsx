@@ -2,9 +2,8 @@ import { HammerIcon, PlusIcon } from "lucide-react";
 
 import { DisabledHint } from "@/components/disabled-hint";
 import { Badge } from "@/components/ui/badge";
-import { SidebarFooter } from "@/components/sidebar-footer";
-import { Button } from "@/components/ui/button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Button } from "@flare/ui/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@flare/ui/ui/tooltip";
 import type { BuildSession } from "@/hooks/use-build-sessions";
 import type { ModConfig, ModStatus } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -39,8 +38,10 @@ export function ModList({
       <div className="flex h-16 shrink-0 items-center justify-between border-b px-3">
         <span className="text-sm font-semibold">Mods</span>
         <Tooltip>
-          <TooltipTrigger render={<Button variant="ghost" size="icon-sm" onClick={onAdd} aria-label="Add a mod" />}>
-            <PlusIcon />
+          <TooltipTrigger asChild>
+            <Button variant="ghost" size="icon-sm" onClick={onAdd} aria-label="Add a mod">
+              <PlusIcon />
+            </Button>
           </TooltipTrigger>
           <TooltipContent side="bottom">Add a mod</TooltipContent>
         </Tooltip>
@@ -97,8 +98,6 @@ export function ModList({
           </DisabledHint>
         </div>
       )}
-
-      <SidebarFooter />
     </aside>
   );
 }

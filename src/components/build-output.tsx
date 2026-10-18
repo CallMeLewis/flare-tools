@@ -3,7 +3,7 @@ import { CheckIcon, ChevronRightIcon, CopyIcon, MinusIcon, XIcon } from "lucide-
 import { toast } from "sonner";
 
 import { DisabledHint } from "@/components/disabled-hint";
-import { Button } from "@/components/ui/button";
+import { Button } from "@flare/ui/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import type { BuildSession, LogLine } from "@/hooks/use-build-sessions";
 import type { LogLevel, Step, StepStatus } from "@/lib/api";

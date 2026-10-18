@@ -19,11 +19,11 @@ import {
   UnderlineIcon,
 } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
+import { Button } from "@flare/ui/ui/button";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Kbd } from "@/components/ui/kbd";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tabs, TabsList, TabsTrigger } from "@flare/ui/ui/tabs";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@flare/ui/ui/tooltip";
 import { Counter } from "@/components/workshop/counter";
 import { parseBBCode, type BBNode } from "@/lib/bbcode";
 import { openLink } from "@/lib/open";
@@ -185,20 +185,18 @@ export function BBCodeEditor({ id, label, value, onChange, disabled, max }: BBCo
                   {index > 0 && <span className="mx-1 h-4 w-px bg-border" aria-hidden />}
                   {group.map((action) => (
                     <Tooltip key={action.label}>
-                      <TooltipTrigger
-                        render={
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            aria-label={action.label}
-                            disabled={disabled}
-                            // Keep the textarea's selection when the button is pressed.
-                            onMouseDown={(e) => e.preventDefault()}
-                            onClick={() => apply(action)}
-                          />
-                        }
-                      >
-                        <action.icon />
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          aria-label={action.label}
+                          disabled={disabled}
+                          // Keep the textarea's selection when the button is pressed.
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => apply(action)}
+                        >
+                          <action.icon />
+                        </Button>
                       </TooltipTrigger>
                       <TooltipContent side="bottom">
                         {action.label}

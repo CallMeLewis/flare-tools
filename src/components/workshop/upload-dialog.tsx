@@ -3,7 +3,7 @@ import { CircleAlertIcon, CircleCheckIcon, ExternalLinkIcon, HammerIcon, UploadC
 
 import { DisabledHint } from "@/components/disabled-hint";
 import { PathInput } from "@/components/path-input";
-import { Button } from "@/components/ui/button";
+import { Button } from "@flare/ui/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -11,7 +11,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
+} from "@flare/ui/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,11 +19,11 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from "@flare/ui/ui/dropdown-menu";
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
-import { Progress } from "@/components/ui/progress";
+import { Progress } from "@flare/ui/ui/progress";
 import { Spinner } from "@/components/ui/spinner";
-import { Textarea } from "@/components/ui/textarea";
+import { Textarea } from "@flare/ui/ui/textarea";
 import { Counter } from "@/components/workshop/counter";
 import { useContentSummary } from "@/hooks/use-content-summary";
 import { workshopUrl, type ModConfig, type PublishProgress, type PublishStage, type WorkshopItem } from "@/lib/api";
@@ -175,9 +175,11 @@ export function UploadDialog({
               <FieldLabel htmlFor="upload-path">Folder</FieldLabel>
               {mods.length > 0 && (
                 <DropdownMenu>
-                  <DropdownMenuTrigger render={<Button variant="ghost" size="xs" disabled={publishing} />}>
-                    <HammerIcon data-icon="inline-start" />
-                    From Build
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="xs" disabled={publishing}>
+                      <HammerIcon data-icon="inline-start" />
+                      From Build
+                    </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-56">
                     <DropdownMenuGroup>

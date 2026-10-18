@@ -2,10 +2,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { HammerIcon, UploadCloudIcon } from "lucide-react";
 import { toast } from "sonner";
 
+import { AppShell, AppSidebar, type SidebarItem } from "@flare/ui";
+
+import { AppMark } from "@/components/app-mark";
 import { SettingsDialog } from "@/components/settings-dialog";
-import { SidebarFooterContext } from "@/components/sidebar-footer";
 import { openSteam, SteamGate } from "@/components/steam-gate";
-import { TitleBar, type ToolDefinition } from "@/components/title-bar";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -15,9 +16,9 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+} from "@flare/ui/ui/alert-dialog";
 import { Toaster } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
+import { TooltipProvider } from "@flare/ui/ui/tooltip";
 import { useSteamPresence } from "@/hooks/use-steam-presence";
 import { api } from "@/lib/api";
 import { dialogOpen } from "@/lib/shortcuts";
@@ -28,7 +29,7 @@ import { WorkshopTool } from "@/tools/workshop-tool";
 
 type ToolId = "build" | "workshop";
 
-const TOOLS: ToolDefinition<ToolId>[] = [
+const TOOLS: Omit<SidebarItem<ToolId>, "busy">[] = [
   { id: "build", label: "Build", icon: HammerIcon },
   { id: "workshop", label: "Workshop", icon: UploadCloudIcon },
 ];
@@ -105,7 +106,7 @@ export default function App() {
     else closeSettings();
   }
 
-  // Ctrl+1, Ctrl+2… jump between tools, in the order they're shown in the title bar.
+  // Ctrl+1, Ctrl+2… jump between tools, in the order they're shown in the sidebar.
   useEffect(() => {
     if (settingsOpen || !steamReady) return;
     const onKey = (e: KeyboardEvent) => {
@@ -130,35 +131,44 @@ export default function App() {
 
   return (
     <TooltipProvider>
-      <div className="flex h-screen flex-col overflow-hidden">
-        <TitleBar tools={steamReady ? TOOLS : []} active={tool} onSelect={selectTool} busy={busy} />
+      <AppShell
+        // The orange of the app's icon.
+        mark={<AppMark className="size-3.5" />}
+        markClassName="bg-brand/15 text-brand"
+        // Until Steam is up there's nothing to choose between.
+        sidebar={
+          steamReady && (
+            <AppSidebar
+              sections={[{ label: "Tools", items: TOOLS.map((item) => ({ ...item, busy: busy[item.id] })) }]}
+              active={tool}
+              onSelect={selectTool}
+              onOpenSettings={openSettings}
+            />
+          )
+        }
+      >
         {!steamReady ? (
           <SteamGate presence={steam} />
         ) : (
-          // Every tool's sidebar ends with Settings and the theme switch.
-          <SidebarFooterContext.Provider
-            value={{ onOpenSettings: openSettings, theme: theme.preference, onCycleTheme: theme.cycle }}
-          >
-            <div className="flex min-h-0 flex-1">
-              {/* Settings live with the build tool for now, since every setting is about building, so it stays mounted. */}
-              <BuildTool
-                active={tool === "build"}
-                settingsOpen={settingsOpen}
-                settingsVersion={settingsVersion}
-                onOpenSettings={openSettings}
-                onBusyChange={setBuildBusy}
+          <div className="flex min-w-0 flex-1">
+            {/* Settings live with the build tool for now, since every setting is about building, so it stays mounted. */}
+            <BuildTool
+              active={tool === "build"}
+              settingsOpen={settingsOpen}
+              settingsVersion={settingsVersion}
+              onOpenSettings={openSettings}
+              onBusyChange={setBuildBusy}
+            />
+            {opened.has("workshop") && (
+              <WorkshopTool
+                active={tool === "workshop"}
+                steamOnline={steam === "signedIn"}
+                onBusyChange={setWorkshopBusy}
               />
-              {opened.has("workshop") && (
-                <WorkshopTool
-                  active={tool === "workshop"}
-                  steamOnline={steam === "signedIn"}
-                  onBusyChange={setWorkshopBusy}
-                />
-              )}
-            </div>
-          </SidebarFooterContext.Provider>
+            )}
+          </div>
         )}
-      </div>
+      </AppShell>
 
       <SettingsDialog
         open={settingsOpen}

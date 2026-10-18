@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { UnplugIcon, UserRoundIcon } from "lucide-react";
 import { toast } from "sonner";
 
-import { Button } from "@/components/ui/button";
+import { Button } from "@flare/ui/ui/button";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Spinner } from "@/components/ui/spinner";
 import { api, errorMessage, OPEN_STEAM_URL, type SteamPresence } from "@/lib/api";

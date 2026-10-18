@@ -20,14 +20,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
+} from "@flare/ui/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button } from "@flare/ui/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@flare/ui/ui/input";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@flare/ui/ui/select";
+import { Tabs, TabsList, TabsTrigger } from "@flare/ui/ui/tabs";
 import { Spinner } from "@/components/ui/spinner";
 import { Toggle } from "@/components/ui/toggle";
 import { BBCodeEditor } from "@/components/workshop/bbcode-editor";
@@ -380,9 +380,11 @@ export function ItemEditor({
           )}
           {item && pageChanged && !locked && (
             <AlertDialog open={confirmUndo} onOpenChange={setConfirmUndo}>
-              <AlertDialogTrigger render={<Button variant="outline" />}>
-                <RotateCcwIcon data-icon="inline-start" />
-                Undo changes
+              <AlertDialogTrigger asChild>
+                <Button variant="outline">
+                  <RotateCcwIcon data-icon="inline-start" />
+                  Undo changes
+                </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
@@ -501,7 +503,7 @@ export function ItemEditor({
                         disabled={locked}
                       >
                         <SelectTrigger id="item-visibility" className="w-full">
-                          <SelectValue>{(value: Visibility) => VISIBILITY_LABEL[value]}</SelectValue>
+                          <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectGroup>

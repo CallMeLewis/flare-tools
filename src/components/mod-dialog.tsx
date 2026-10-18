@@ -14,8 +14,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
-import { Button } from "@/components/ui/button";
+} from "@flare/ui/ui/alert-dialog";
+import { Button } from "@flare/ui/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -23,7 +23,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
+} from "@flare/ui/ui/dialog";
 import {
   Field,
   FieldContent,
@@ -33,8 +33,8 @@ import {
   FieldSeparator,
   FieldTitle,
 } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
+import { Input } from "@flare/ui/ui/input";
+import { Switch } from "@flare/ui/ui/switch";
 import { useInspection } from "@/hooks/use-inspection";
 import { api, errorMessage, type ModConfig, type Settings } from "@/lib/api";
 import { fileName, joinPath } from "@/lib/format";
@@ -293,7 +293,7 @@ export function ModDialog({ open, onOpenChange, settings, mod, onSaved, onRemove
           <div>
             {onRemove && (
               <AlertDialog>
-                <AlertDialogTrigger render={<Button variant="destructive" />}>Remove mod</AlertDialogTrigger>
+                <AlertDialogTrigger asChild><Button variant="destructive">Remove mod</Button></AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
                     <AlertDialogTitle>Remove {mod?.name}?</AlertDialogTitle>

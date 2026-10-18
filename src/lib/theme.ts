@@ -4,14 +4,13 @@ export type ThemePreference = "system" | "light" | "dark";
 export type ResolvedTheme = "light" | "dark";
 
 export const THEME_KEY = "theme";
-/** The order the title-bar button cycles through. */
-export const THEME_ORDER: ThemePreference[] = ["system", "light", "dark"];
+const THEMES: ThemePreference[] = ["system", "light", "dark"];
 
 const query = () => window.matchMedia("(prefers-color-scheme: dark)");
 
 export function storedTheme(): ThemePreference {
   const stored = localStorage.getItem(THEME_KEY);
-  return THEME_ORDER.includes(stored as ThemePreference) ? (stored as ThemePreference) : "system";
+  return THEMES.includes(stored as ThemePreference) ? (stored as ThemePreference) : "system";
 }
 
 export function resolveTheme(preference: ThemePreference): ResolvedTheme {
@@ -21,10 +20,6 @@ export function resolveTheme(preference: ThemePreference): ResolvedTheme {
 /** Puts the resolved theme on <html>, which is what every token in index.css keys off. */
 function applyTheme(resolved: ResolvedTheme) {
   document.documentElement.classList.toggle("dark", resolved === "dark");
-}
-
-export function nextTheme(current: ThemePreference): ThemePreference {
-  return THEME_ORDER[(THEME_ORDER.indexOf(current) + 1) % THEME_ORDER.length];
 }
 
 /**
@@ -53,5 +48,5 @@ export function useTheme() {
     setPreferenceState(next);
   }
 
-  return { preference, resolved, setPreference, cycle: () => setPreference(nextTheme(preference)) };
+  return { preference, resolved, setPreference };
 }

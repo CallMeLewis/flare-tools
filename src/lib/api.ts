@@ -226,26 +226,6 @@ export interface PublishOutcome {
   needsAgreement: boolean;
 }
 
-export type UpdateChannel = "stable" | "beta";
-
-export interface UpdateSettings {
-  channel: UpdateChannel;
-  /** Whether the app checks on its own, at start and every few hours. */
-  autoCheck: boolean;
-}
-
-export type UpdateStatus =
-  /** Development builds, which cannot update themselves. */
-  | { state: "unsupported" }
-  | { state: "idle" }
-  | { state: "checking" }
-  | { state: "upToDate"; checkedAt: number }
-  // notes: the new version's release notes from the update feed, as plain text ("- " bullet lines).
-  | { state: "available"; version: string; releaseDate?: string | null; notes?: string | null }
-  | { state: "downloading"; version: string; percent: number; notes?: string | null }
-  | { state: "ready"; version: string; notes?: string | null }
-  | { state: "error"; message: string };
-
 export const api = {
   getData: () => invoke<AppData>("get_data"),
   /** What went wrong reading the saved mods and settings at startup. Only returned once. */
@@ -272,19 +252,7 @@ export const api = {
   readFile: (path: string) => invoke<ArrayBuffer>("read_file", { path }),
   inspectContent: (path: string) => invoke<ContentSummary>("inspect_content", { path }),
   publishItem: (request: PublishRequest) => invoke<PublishOutcome>("publish_item", { request }),
-  updateStatus: () => invoke<UpdateStatus>("update_status"),
-  checkForUpdates: () => invoke<UpdateStatus>("check_for_updates"),
-  downloadUpdate: () => invoke<void>("download_update"),
-  installUpdate: () => invoke<void>("install_update"),
-  updateSettings: () => invoke<UpdateSettings>("update_settings"),
-  setAutoUpdateCheck: (enabled: boolean) => invoke<UpdateStatus>("set_auto_update_check", { enabled }),
-  setUpdateChannel: (channel: UpdateChannel) => invoke<UpdateStatus>("set_update_channel", { channel }),
 };
-
-/** Calls back whenever the app's own update status changes. */
-export function onUpdateStatus(handler: (status: UpdateStatus) => void): Promise<UnlistenFn> {
-  return listen<UpdateStatus>("update:status", (e) => handler(e.payload));
-}
 
 export function onPublishProgress(handler: (progress: PublishProgress) => void): Promise<UnlistenFn> {
   return listen<PublishProgress>("publish-progress", (e) => handler(e.payload));

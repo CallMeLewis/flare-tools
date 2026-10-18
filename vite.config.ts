@@ -3,8 +3,8 @@ import path from "node:path";
 import process from "node:process";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
-import { defineConfig } from "vite";
-import { notesFor } from "./scripts/changelog.ts";
+import { defineConfig, searchForWorkspaceRoot } from "vite";
+import { notesFor } from "@flare/release/changelog";
 
 const host = process.env.TAURI_DEV_HOST;
 
@@ -20,6 +20,9 @@ export default defineConfig(() => ({
     alias: {
       "@": path.resolve(import.meta.dirname, "./src"),
     },
+    // The shared interface (@flare/ui) uses this app's copies of these, as it's linked from the flare-common checkout
+    // beside this repo, which has its own.
+    dedupe: ["react", "react-dom", "radix-ui", "lucide-react", "cn", "class-variance-authority", "@tauri-apps/api"],
   },
 
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
@@ -42,5 +45,7 @@ export default defineConfig(() => ({
       // 3. tell Vite to ignore watching `src-tauri`
       ignored: ["**/src-tauri/**"],
     },
+    // The flare-common checkout serves the shared interface's fonts from its own node_modules.
+    fs: { allow: [searchForWorkspaceRoot(process.cwd()), path.resolve(import.meta.dirname, "../flare-common")] },
   },
 }));

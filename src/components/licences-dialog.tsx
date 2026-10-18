@@ -2,7 +2,7 @@ import { useState } from "react";
 import { ExternalLinkIcon, ScaleIcon } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button } from "@flare/ui/ui/button";
 import {
   Dialog,
   DialogClose,
@@ -12,7 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog";
+} from "@flare/ui/ui/dialog";
 import { openLink } from "@/lib/open";
 // Built into the app, since the font's licence has to travel with it.
 import geistLicence from "../../licenses/OFL-geist.txt?raw";
@@ -67,9 +67,11 @@ export function LicencesDialog({ author, repoUrl }: { author: string; repoUrl: s
 
   return (
     <Dialog>
-      <DialogTrigger render={<Button variant="outline" className="shrink-0" />}>
-        <ScaleIcon data-icon="inline-start" />
-        View licences
+      <DialogTrigger asChild>
+        <Button variant="outline" className="shrink-0">
+          <ScaleIcon data-icon="inline-start" />
+          View licences
+        </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
@@ -82,7 +84,7 @@ export function LicencesDialog({ author, repoUrl }: { author: string; repoUrl: s
           ))}
         </ul>
         <DialogFooter>
-          <DialogClose render={<Button variant="secondary" />}>Close</DialogClose>
+          <DialogClose asChild><Button variant="secondary">Close</Button></DialogClose>
         </DialogFooter>
       </DialogContent>
     </Dialog>

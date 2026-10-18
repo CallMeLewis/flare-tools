@@ -46,7 +46,7 @@ function install(installer: string): string {
 /** Starts the app, fails if it exits within SECONDS or hasn't drawn its interface, then closes it and all it started. */
 async function staysOpen(program: string): Promise<void> {
   const ready = join(mkdtempSync(join(tmpdir(), "flare-tools-ready-")), "ready");
-  const child = spawn(program, [], { stdio: "inherit", env: { ...process.env, FLARE_TOOLS_SMOKE_TEST: ready } });
+  const child = spawn(program, [], { stdio: "inherit", env: { ...process.env, FLARE_TOOLS_SMOKE_TEST: ready, FLARE_NO_AUTO_UPDATE_CHECK: "1" } });
   const exited = new Promise<string>((done) => {
     child.on("error", (error) => done(`couldn't be started: ${error.message}`));
     child.on("exit", (code, signal) => done(`closed after starting (${signal ?? `exit code ${code}`})`));
