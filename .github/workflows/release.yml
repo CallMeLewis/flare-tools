@@ -8,6 +8,7 @@
 # Needs these secrets in the release environment, which only main and v* tags can use: TAURI_SIGNING_PRIVATE_KEY (the
 # contents of the update signing key), CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID for writing the feed to R2, and
 # CERTUM_USERNAME and CERTUM_TOTP_SECRET for signing the build with the code signing certificate (see build.yml).
+# And, as a repository secret, FLARE_COMMON_DEPLOY_KEY for reading flare-common (see .github/actions/flare-common).
 name: Release
 
 on:
@@ -75,6 +76,7 @@ jobs:
     secrets:
       CERTUM_USERNAME: ${{ secrets.CERTUM_USERNAME }}
       CERTUM_TOTP_SECRET: ${{ secrets.CERTUM_TOTP_SECRET }}
+      FLARE_COMMON_DEPLOY_KEY: ${{ secrets.FLARE_COMMON_DEPLOY_KEY }}
 
   publish:
     name: Publish
@@ -100,6 +102,9 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
+      - uses: ./.github/actions/flare-common
+        with:
+          deploy-key: ${{ secrets.FLARE_COMMON_DEPLOY_KEY }}
       - run: pnpm install --frozen-lockfile
       # Back where the build would be on a desktop, which is where the release script looks for it.
       - uses: actions/download-artifact@v8

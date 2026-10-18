@@ -14,7 +14,6 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "changelog": "node scripts/check-changelog.ts",
-    "test": "node --test \"scripts/*.test.ts\"",
     "bump": "node scripts/bump-version.ts",
     "dist": "pnpm changelog && tauri build --bundles nsis",
     "release": "node scripts/publish-update.ts release",
@@ -36,6 +35,7 @@
     "tailwindcss": "^4.3.3"
   },
   "devDependencies": {
+    "@flare/release": "link:../flare-common/packages/release",
     "@tauri-apps/cli": "^2",
     "@types/node": "^24.19.2",
     "@types/react": "^19.1.8",

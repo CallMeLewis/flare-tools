@@ -7,7 +7,14 @@ Windows, like the tools it drives.
 
 You need Node 24 with pnpm, and Rust (the version in `rust-toolchain.toml`, which rustup installs for you).
 
+The updater, much of the interface and the release script are shared by the Flare apps, in the private
+[flare-common](https://github.com/CallMeLewis/flare-common) repo, which the app links to from beside this one. Check it
+out next to this repo, on the tag in `.flare-common-version`, and install its packages first:
+
 ```sh
+git clone https://github.com/CallMeLewis/flare-common ../flare-common
+git -C ../flare-common checkout "$(cat .flare-common-version)"
+pnpm --dir ../flare-common install
 pnpm install
 pnpm tauri dev      # run the app
 pnpm dist           # build the installer
@@ -31,7 +38,7 @@ release. A stable release also updates `beta.json` when it's newer than the late
 every six hours (unless turned off in Settings > About), and nothing downloads or installs until the user chooses to.
 
 Development builds don't update themselves. To try the update flow, make a local feed with `pnpm release:feed <dir>`,
-serve that folder over HTTP and start a debug build with `FLARE_TOOLS_UPDATE_TEST_URL` set to its address.
+serve that folder over HTTP and start a debug build with `FLARE_UPDATE_TEST_URL` set to its address.
 
 ## Releasing
 

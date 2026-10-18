@@ -48,6 +48,9 @@ importers:
         specifier: ^4.3.3
         version: 4.3.3
     devDependencies:
+      '@flare/release':
+        specifier: link:../flare-common/packages/release
+        version: link:../flare-common/packages/release
       '@tauri-apps/cli':
         specifier: ^2
         version: 2.12.2

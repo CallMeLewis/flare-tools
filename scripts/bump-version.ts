@@ -6,7 +6,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { compareVersions, parseChangelog, versionProblem } from "./changelog.ts";
+import { compareVersions, parseChangelog, versionProblem } from "@flare/release/changelog";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const path = (file: string) => resolve(root, file);
@@ -14,7 +14,7 @@ const path = (file: string) => resolve(root, file);
 const version = process.argv[2];
 if (!version) fail("Give the new version, such as 1.2.0 or 1.2.0-beta.1.");
 // The same rule as releasing, so a version can't be bumped to and then refused on release day.
-const problem = versionProblem(version);
+const problem = versionProblem(version, "Flare Tools");
 if (problem) fail(problem);
 
 const current: string = JSON.parse(readFileSync(path("package.json"), "utf8")).version;
