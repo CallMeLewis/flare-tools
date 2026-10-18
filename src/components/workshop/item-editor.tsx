@@ -30,6 +30,7 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectVa
 import { Tabs, TabsList, TabsTrigger } from "@flare/ui/ui/tabs";
 import { Spinner } from "@/components/ui/spinner";
 import { Toggle } from "@/components/ui/toggle";
+import { ToolPageHeader } from "@/components/tool-page";
 import { BBCodeEditor } from "@/components/workshop/bbcode-editor";
 import { Counter } from "@/components/workshop/counter";
 import { Thumbnail } from "@/components/workshop/item-list";
@@ -336,8 +337,8 @@ export function ItemEditor({
   const title = page.title.trim() || (isNew ? "New item" : "Untitled");
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <header className="flex h-16 shrink-0 items-center gap-4 border-b px-6">
+    <>
+      <ToolPageHeader>
         <Thumbnail src={preview?.url ?? item?.previewUrl ?? null} className="size-9" />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2.5">
@@ -440,7 +441,7 @@ export function ItemEditor({
             </DisabledHint>
           )}
         </div>
-      </header>
+      </ToolPageHeader>
 
       {/* The page and the stats share the width, each scrolling on its own. When the window is too
           narrow for both, the stats drop below the page and the whole thing scrolls together. */}
@@ -670,6 +671,6 @@ export function ItemEditor({
         pageDirty={!isNew && pageChanged}
         onUpload={(request) => void upload(request)}
       />
-    </div>
+    </>
   );
 }

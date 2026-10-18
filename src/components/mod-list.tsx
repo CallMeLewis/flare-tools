@@ -34,9 +34,10 @@ export function ModList({
   onBuildChanged,
 }: ModListProps) {
   return (
-    <aside className="flex w-76 shrink-0 flex-col border-r bg-sidebar text-sidebar-foreground">
-      <div className="flex h-16 shrink-0 items-center justify-between border-b px-3">
-        <span className="text-sm font-semibold">Mods</span>
+    // A card below the page's header, like the ones beside it, rather than a second sidebar next to the app's.
+    <aside className="m-4 mr-0 flex w-72 shrink-0 flex-col overflow-hidden rounded-xl bg-card text-card-foreground ring-1 ring-foreground/10">
+      <div className="flex h-12 shrink-0 items-center justify-between border-b pr-2 pl-4">
+        <span className="font-heading text-base leading-snug font-medium">Mods</span>
         <Tooltip>
           <TooltipTrigger asChild>
             <Button variant="ghost" size="icon-sm" onClick={onAdd} aria-label="Add a mod">

@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { ModDialog } from "@/components/mod-dialog";
 import { ModList } from "@/components/mod-list";
 import { ModView } from "@/components/mod-view";
+import { ToolPage, ToolPageTitle } from "@/components/tool-page";
 import { Button } from "@flare/ui/ui/button";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Spinner } from "@/components/ui/spinner";
@@ -167,19 +168,21 @@ export function BuildTool({ active, settingsOpen, settingsVersion, onOpenSetting
   return (
     <>
       <div className={cn("flex min-w-0 flex-1 overflow-hidden", !active && "hidden")}>
-        <ModList
-          mods={mods}
-          statuses={statuses}
-          sessions={sessions}
-          selectedId={selected?.id ?? null}
-          onSelect={setSelectedId}
-          onAdd={() => setModDialog({ open: true, mod: null })}
-          changedCount={changedIds.length}
-          busy={busy}
-          onBuildChanged={() => void buildMods(changedIds)}
-        />
-
-        <main className="flex min-w-0 flex-1 flex-col">
+        <ToolPage
+          list={
+            <ModList
+              mods={mods}
+              statuses={statuses}
+              sessions={sessions}
+              selectedId={selected?.id ?? null}
+              onSelect={setSelectedId}
+              onAdd={() => setModDialog({ open: true, mod: null })}
+              changedCount={changedIds.length}
+              busy={busy}
+              onBuildChanged={() => void buildMods(changedIds)}
+            />
+          }
+        >
           {selected ? (
             <ModView
               key={selected.id}
@@ -195,31 +198,34 @@ export function BuildTool({ active, settingsOpen, settingsVersion, onOpenSetting
               onChange={(patch) => void changeMod(selected, patch)}
             />
           ) : (
-            <Empty className="flex-1">
-              <EmptyHeader>
-                <EmptyMedia variant="icon">
-                  <BoxesIcon />
-                </EmptyMedia>
-                <EmptyTitle>Add your first mod</EmptyTitle>
-                <EmptyDescription>
-                  Choose a mod's unpacked folder and where to pack it. After that, building is one click.
-                </EmptyDescription>
-              </EmptyHeader>
-              <EmptyContent className="flex-row justify-center">
-                {toolsMissing && (
-                  <Button variant="outline" onClick={onOpenSettings}>
-                    <SettingsIcon data-icon="inline-start" />
-                    Set up tools
+            <>
+              <ToolPageTitle title="Build" description="Pack and sign your mods." />
+              <Empty className="flex-1">
+                <EmptyHeader>
+                  <EmptyMedia variant="icon">
+                    <BoxesIcon />
+                  </EmptyMedia>
+                  <EmptyTitle>Add your first mod</EmptyTitle>
+                  <EmptyDescription>
+                    Choose a mod's unpacked folder and where to pack it. After that, building is one click.
+                  </EmptyDescription>
+                </EmptyHeader>
+                <EmptyContent className="flex-row justify-center">
+                  {toolsMissing && (
+                    <Button variant="outline" onClick={onOpenSettings}>
+                      <SettingsIcon data-icon="inline-start" />
+                      Set up tools
+                    </Button>
+                  )}
+                  <Button onClick={() => setModDialog({ open: true, mod: null })}>
+                    <PlusIcon data-icon="inline-start" />
+                    Add a mod
                   </Button>
-                )}
-                <Button onClick={() => setModDialog({ open: true, mod: null })}>
-                  <PlusIcon data-icon="inline-start" />
-                  Add a mod
-                </Button>
-              </EmptyContent>
-            </Empty>
+                </EmptyContent>
+              </Empty>
+            </>
           )}
-        </main>
+        </ToolPage>
       </div>
 
       <ModDialog

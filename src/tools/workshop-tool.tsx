@@ -16,6 +16,7 @@ import { openSteam } from "@/components/steam-gate";
 import { Button } from "@flare/ui/ui/button";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Spinner } from "@/components/ui/spinner";
+import { ToolPage, ToolPageTitle } from "@/components/tool-page";
 import { ItemEditor } from "@/components/workshop/item-editor";
 import { ItemList } from "@/components/workshop/item-list";
 import {
@@ -173,43 +174,51 @@ export function WorkshopTool({ active, steamOnline, onBusyChange }: WorkshopTool
   const leavingName = showingNew ? "the new item" : (selected?.title || "this item");
   // The edits are on their way to Steam, so leaving only loses them if Steam turns them down.
   const leavingWhileSaving = publishing?.key === editorKey && publishing.sendsEdits;
+  // As in the states below: something open shows once Steam has answered, even if it can't be reached.
+  const showsEditor = Boolean(steam && editorKey);
 
   return (
     <div className={cn("flex min-w-0 flex-1 overflow-hidden", !active && "hidden")}>
-      <ItemList
-        steam={steam}
-        items={items}
-        selectedId={editorKey}
-        onSelect={requestSelect}
-        onNew={() => requestSelect(NEW)}
-        onRefresh={() => void refresh()}
-        refreshing={refreshing}
-        offline={!steamOnline}
-      />
-
-      <main className="flex min-w-0 flex-1 flex-col">
-        {steam && (!steamOnline || keepEditor) && (
-          <div
-            role="status"
-            className="flex shrink-0 items-center gap-3 border-b bg-warning/10 px-6 py-2.5 text-sm"
-          >
-            <UnplugIcon className="size-4 shrink-0 text-warning" aria-hidden />
-            <p className="flex-1">
-              {steamOnline ? "Can't reach Steam." : "Steam isn't connected."} You can keep editing; publishing waits
-              until it's back.
-            </p>
-            {steamOnline ? (
-              <Button variant="outline" size="sm" onClick={() => void refresh()} disabled={refreshing}>
-                {refreshing && <Spinner data-icon="inline-start" />}
-                Try again
-              </Button>
-            ) : (
-              <Button variant="outline" size="sm" onClick={openSteam}>
-                Start Steam
-              </Button>
-            )}
-          </div>
-        )}
+      <ToolPage
+        list={
+          <ItemList
+            steam={steam}
+            items={items}
+            selectedId={editorKey}
+            onSelect={requestSelect}
+            onNew={() => requestSelect(NEW)}
+            onRefresh={() => void refresh()}
+            refreshing={refreshing}
+            offline={!steamOnline}
+          />
+        }
+        notice={
+          steam && (!steamOnline || keepEditor) && (
+            <div
+              role="status"
+              className="flex shrink-0 items-center gap-3 border-b bg-warning/10 px-4 py-2.5 text-sm"
+            >
+              <UnplugIcon className="size-4 shrink-0 text-warning" aria-hidden />
+              <p className="flex-1">
+                {steamOnline ? "Can't reach Steam." : "Steam isn't connected."} You can keep editing; publishing waits
+                until it's back.
+              </p>
+              {steamOnline ? (
+                <Button variant="outline" size="sm" onClick={() => void refresh()} disabled={refreshing}>
+                  {refreshing && <Spinner data-icon="inline-start" />}
+                  Try again
+                </Button>
+              ) : (
+                <Button variant="outline" size="sm" onClick={openSteam}>
+                  Start Steam
+                </Button>
+              )}
+            </div>
+          )
+        }
+      >
+        {/* The open item fills the header itself. Otherwise it names the tool. */}
+        {!showsEditor && <ToolPageTitle title="Workshop" description="Publish your mods to the DayZ Workshop." />}
         {!steam ? (
           <div className="flex flex-1 items-center justify-center">
             <Spinner className="size-5 text-muted-foreground" />
@@ -265,7 +274,7 @@ export function WorkshopTool({ active, steamOnline, onBusyChange }: WorkshopTool
             <Spinner className="size-5 text-muted-foreground" />
           </div>
         )}
-      </main>
+      </ToolPage>
 
       <AlertDialog open={pendingId !== undefined} onOpenChange={(open) => !open && setPendingId(undefined)}>
         <AlertDialogContent>

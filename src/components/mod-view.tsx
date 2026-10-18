@@ -16,6 +16,7 @@ import {
 import { BuildLog, BuildSteps, CopyLogButton } from "@/components/build-output";
 import { DisabledHint } from "@/components/disabled-hint";
 import { ModPlan, prefixSourceLabel } from "@/components/mod-plan";
+import { ToolPageHeader } from "@/components/tool-page";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@flare/ui/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -137,8 +138,8 @@ export function ModView({
             : null;
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <header className="flex h-16 shrink-0 items-center gap-4 border-b px-6">
+    <>
+      <ToolPageHeader>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2.5">
             <h1 className="truncate text-base font-semibold" title={mod.name}>
@@ -180,7 +181,7 @@ export function ModView({
             </Button>
           </DisabledHint>
         </div>
-      </header>
+      </ToolPageHeader>
 
       {/* The packing column grows with the window but stops at 28rem, and never squeezes the log below
           a readable width at the minimum window size. */}
@@ -423,6 +424,6 @@ export function ModView({
           </CardContent>
         </Card>
       </div>
-    </div>
+    </>
   );
 }
