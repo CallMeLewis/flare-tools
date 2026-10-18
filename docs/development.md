@@ -1,6 +1,6 @@
 # Development
 
-Flare Tools is built with Tauri 2 (Rust), React, TypeScript, Tailwind CSS and shadcn/ui (Base UI). It only runs on
+Flare Tools is built with Tauri 2 (Rust), React, TypeScript, Tailwind CSS and shadcn/ui (Radix). It only runs on
 Windows, like the tools it drives.
 
 ## Running it
@@ -20,6 +20,14 @@ pnpm tauri dev      # run the app
 pnpm dist           # build the installer
 ```
 
+A change to the shared code is made in flare-common, and shows in the app straight away through the link. It
+reaches the app's releases once flare-common is tagged and `.flare-common-version` moves to the new tag: see
+flare-common's README.
+
+From flare-common come the updater (`tauri-plugin-flare-updater`), the theme, the base components, the title bar,
+sidebar, settings dialog and update button (`@flare/ui`), and the release script and changelog reader
+(`@flare/release`). Everything about building, signing and publishing mods is the app's own.
+
 Settings and mods are stored in `%APPDATA%\com.darkzone.flaretools\data.json`, build history in the `builds` folder
 next to it.
 
@@ -32,10 +40,11 @@ so a release script that no longer fits the build fails on an ordinary push rath
 
 ## Updates
 
-Installed copies update themselves from a feed on Cloudflare R2, at `https://updates.darkzone.dev/flare-tools/`:
-`latest.json` for the stable channel and `beta.json` for beta, each pointing at the installer on its version's GitHub
-release. A stable release also updates `beta.json` when it's newer than the latest beta. The app checks at start and
-every six hours (unless turned off in Settings > About), and nothing downloads or installs until the user chooses to.
+Installed copies update themselves through the Flare apps' shared updater, from a feed on Cloudflare R2, at
+`https://updates.darkzone.dev/flare-tools/`: `latest.json` for the stable channel and `beta.json` for beta, each
+pointing at the installer on its version's GitHub release. A stable release also updates `beta.json` when it's newer
+than the latest beta. The app checks at start and every six hours (unless turned off in Settings > About), and nothing
+downloads or installs until the user chooses to.
 
 Development builds don't update themselves. To try the update flow, make a local feed with `pnpm release:feed <dir>`,
 serve that folder over HTTP and start a debug build with `FLARE_UPDATE_TEST_URL` set to its address.
