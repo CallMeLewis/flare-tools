@@ -2,6 +2,13 @@
 
 What changed in each version of Flare Tools, newest first.
 
+## 0.4.0 - 2026-10-18
+
+- Build and Workshop are now in a sidebar on the left instead of the title bar, with Settings and the update button at its foot; it shrinks to icons when the window is narrow.
+- The Mods and Workshop items lists now sit below the page's title and buttons, alongside the rest of the page.
+- New font and colours throughout Flare Tools, with its orange kept for the app's mark.
+- Right-clicking no longer opens a browser menu with Back, Reload and Inspect; text fields still have Cut, Copy and Paste.
+
 ## 0.3.2 - 2026-10-17
 
 - Fixed building a mod removing the PBOs of other mods built into the same output folder, such as a mod's client and server halves added as two mods.
