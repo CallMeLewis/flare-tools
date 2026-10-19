@@ -2,6 +2,10 @@
 
 What changed in each version of Flare Tools, newest first.
 
+## 0.5.0 - 2026-10-19
+
+- New tick boxes beside each PBO under Packing let you choose which of a mod's PBOs to build, for a mod of several. An unticked PBO keeps its last build and signatures in the addons folder, and the choice is saved with the mod.
+
 ## 0.4.0 - 2026-10-18
 
 - Build and Workshop are now in a sidebar on the left instead of the title bar, with Settings and the update button at its foot; it shrinks to icons when the window is narrow.
