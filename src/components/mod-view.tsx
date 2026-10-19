@@ -15,7 +15,7 @@ import {
 
 import { BuildLog, BuildSteps, CopyLogButton } from "@/components/build-output";
 import { DisabledHint } from "@/components/disabled-hint";
-import { ModPlan, prefixSourceLabel } from "@/components/mod-plan";
+import { isSkipped, ModPlan, prefixSourceLabel } from "@/components/mod-plan";
 import { ToolPageHeader } from "@/components/tool-page";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@flare/ui/ui/button";
@@ -104,7 +104,11 @@ export function ModView({
   const inspection = useInspection(mod.sourcePath, mod.prefix, mod.pboName, refreshKey);
   const state = modState(mod, status, session);
   const running = Boolean(session?.running);
-  const blocked = !inspection || Boolean(inspection.problem);
+  const nothingTicked =
+    !!inspection &&
+    inspection.pbos.length > 0 &&
+    inspection.pbos.every((pbo) => isSkipped(inspection, mod.skippedPbos, pbo));
+  const blocked = !inspection || Boolean(inspection.problem) || nothingTicked;
   const keyName = fileName(mod.privateKeyPath || settings.defaultPrivateKeyPath).replace(/\.biprivatekey$/i, "");
   // An earlier build picked from the list, shown in place of the current one.
   const [viewingId, setViewingId] = useState<string | null>(null);
@@ -133,8 +137,10 @@ export function ModView({
         ? "Checking the source folder…"
         : inspection.pbos.length === 0
           ? "Nothing to pack. The source folder has no PBOs in it."
-          : blocked
-            ? "Fix the problem under Packing first."
+          : nothingTicked
+            ? "Tick at least one PBO under Packing to build."
+            : blocked
+              ? "Fix the problem under Packing first."
             : null;
 
   return (
@@ -230,7 +236,14 @@ export function ModView({
                 </Detail>
               </dl>
 
-              {inspection && <ModPlan inspection={inspection} />}
+              {inspection && (
+                <ModPlan
+                  inspection={inspection}
+                  skipped={mod.skippedPbos}
+                  onSkippedChange={(skippedPbos) => onChange({ skippedPbos })}
+                  disabled={running}
+                />
+              )}
 
               <div className="flex flex-col gap-4">
                 <Field orientation="horizontal">

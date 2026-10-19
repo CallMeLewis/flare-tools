@@ -61,6 +61,10 @@ pub struct ModConfig {
     /// Lets pboProject convert PNGs to PAA. DayZ GUIs often use PNGs as they are.
     #[serde(default = "yes")]
     pub convert_png: bool,
+    /// The folders of the PBOs left out of builds, relative to the mod folder. A list of what's left out rather than
+    /// what's in, so a PBO added to the mod later is built without being ticked.
+    #[serde(default)]
+    pub skipped_pbos: Vec<String>,
     #[serde(default)]
     pub last_build: Option<LastBuild>,
 }

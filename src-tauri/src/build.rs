@@ -16,7 +16,7 @@ use tauri::{AppHandle, Emitter, Manager};
 
 use crate::detect;
 use crate::history::Capture;
-use crate::inspect::{self, Inspection, LinkStatus};
+use crate::inspect::{self, Inspection, LinkStatus, PboPlan};
 use crate::mod_cpp;
 use crate::store::{ModConfig, Settings};
 
@@ -626,8 +626,9 @@ fn require_file(path: &str, what: &str, step: Step) -> Result<PathBuf, Failure> 
     Ok(p)
 }
 
-/// pboProject's arguments, already quoted the way its parser expects.
-fn pbo_project_args(m: &ModConfig, plan: &Inspection, output: &Path) -> Vec<String> {
+/// pboProject's arguments for packing `source`, the mod or one of its PBO folders on P:, already quoted the way its
+/// parser expects.
+fn pbo_project_args(m: &ModConfig, source: &Path, output: &Path) -> Vec<String> {
     // +Label is ignored when the PBO is in a subfolder, so renames happen after packing.
     // Every pboProject option persists into its GUI settings unless +Restore is passed.
     // -Key stops pboProject signing with its own key; this app signs afterwards.
@@ -643,7 +644,7 @@ fn pbo_project_args(m: &ModConfig, plan: &Inspection, output: &Path) -> Vec<Stri
         if m.convert_png { "-H" } else { "+H" }.into(),
         format!("+Mod={}", quoted(output)),
     ];
-    args.push(quoted(Path::new(&plan.build_path)));
+    args.push(quoted(source));
     args
 }
 
@@ -716,6 +717,11 @@ fn signatures(addons: &Path, pbo_file: &str) -> Vec<PathBuf> {
         })
         .map(|entry| entry.path())
         .collect()
+}
+
+/// Whether a PBO is unticked, leaving it out of the mod's builds. A mod of one PBO always builds it.
+fn skipped(m: &ModConfig, plan: &Inspection, pbo: &PboPlan) -> bool {
+    plan.pbos.len() > 1 && m.skipped_pbos.iter().any(|dir| dir.eq_ignore_ascii_case(&pbo.rel_dir))
 }
 
 /// The PBOs that the other mods built into the same `@mod` folder produce, such as a mod's client and server
@@ -845,9 +851,17 @@ fn build_steps(
         return Err(Failure::new(Step::Prepare, "The output folder isn't set."));
     }
     let output = PathBuf::from(m.output_path.trim());
+    let (chosen, left_out): (Vec<&PboPlan>, Vec<&PboPlan>) = plan.pbos.iter().partition(|pbo| !skipped(m, &plan, pbo));
+    if chosen.is_empty() {
+        return Err(Failure::new(Step::Prepare, "Every PBO is unticked under Packing, so there's nothing to build."));
+    }
     reporter.log(Level::Info, format!("Prefix: {}", plan.prefix));
-    for pbo in &plan.pbos {
+    for pbo in &chosen {
         reporter.log(Level::Info, format!("Will pack {}.pbo ({})", pbo.name, pbo.prefix));
+    }
+    for pbo in &left_out {
+        reporter
+            .log(Level::Info, format!("Leaving out {}.pbo, which is unticked, and keeping its last build", pbo.name));
     }
     let _junction = match plan.link {
         LinkStatus::Direct => None,
@@ -871,8 +885,22 @@ fn build_steps(
     // Pack
     reporter.step(Step::Pack, StepStatus::Running);
     let pbos_before = snapshot(&addons, "pbo");
-    let tail = LogTail::new(detect::pbo_project_temp_dir(&settings.p_drive), PathBuf::from(&settings.p_drive));
-    let packed = run_pbo_project(reporter, control, &pbo_project, &pbo_project_args(m, &plan, &output), tail);
+    // pboProject packs the whole mod in one go when every PBO is ticked, and each ticked PBO's folder on its own
+    // otherwise. Its prefix comes out the same, since pboProject reads it from the folder's place on P:.
+    let build_path = Path::new(&plan.build_path);
+    let sources: Vec<PathBuf> = if left_out.is_empty() {
+        vec![build_path.to_path_buf()]
+    } else {
+        chosen.iter().map(|pbo| build_path.join(&pbo.rel_dir)).collect()
+    };
+    let mut packed = Ok(());
+    for source in &sources {
+        let tail = LogTail::new(detect::pbo_project_temp_dir(&settings.p_drive), PathBuf::from(&settings.p_drive));
+        packed = run_pbo_project(reporter, control, &pbo_project, &pbo_project_args(m, source, &output), tail);
+        if packed.is_err() {
+            break;
+        }
+    }
     let written: Vec<PathBuf> =
         snapshot(&addons, "pbo").into_keys().filter(|p| changed_since(p, &pbos_before)).collect();
     if let Err(mut failure) = packed {
@@ -893,7 +921,7 @@ fn build_steps(
 
     let stem = |p: &Path| p.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
     let mut missing = Vec::new();
-    for planned in &plan.pbos {
+    for planned in &chosen {
         let Some(packed) = written.iter().find(|p| stem(p).eq_ignore_ascii_case(&planned.packed_name)) else {
             missing.push(format!("{}.pbo", planned.packed_name));
             continue;
@@ -930,7 +958,9 @@ fn build_steps(
     // signatures from it, and a rebuilt PBO invalidates every signature made for the old one. Other mods built into
     // the same folder keep theirs.
     let built: Vec<String> = pbos.iter().map(|p| format!("{}.pbo", p.name)).collect();
-    let shared = shared_pbos(settings, m, mods, &output);
+    let mut shared = shared_pbos(settings, m, mods, &output);
+    // An unticked PBO keeps its last build and that build's signatures.
+    shared.extend(left_out.iter().map(|pbo| format!("{}.pbo", pbo.name)));
     for path in stale_files(&addons, &built, &shared) {
         let name = path.file_name().unwrap_or_default().to_string_lossy().into_owned();
         let signature = name.to_ascii_lowercase().ends_with(".bisign")

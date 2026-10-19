@@ -53,7 +53,7 @@ interface ModDialogProps {
 /** Whether two versions of a mod differ in anything the dialog edits, counting a cleared field as unset. */
 function sameMod(a: ModConfig, b: ModConfig) {
   return (Object.keys(a) as (keyof ModConfig)[]).every(
-    (key) => key === "lastBuild" || (a[key] ?? "") === (b[key] ?? ""),
+    (key) => key === "lastBuild" || key === "skippedPbos" || (a[key] ?? "") === (b[key] ?? ""),
   );
 }
 
@@ -70,6 +70,7 @@ function blankMod(): ModConfig {
     privateKeyPath: null,
     copyModCpp: true,
     convertPng: true,
+    skippedPbos: [],
     lastBuild: null,
   };
 }

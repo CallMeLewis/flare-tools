@@ -9,7 +9,8 @@ What the Build and Workshop tools do behind the scenes, and why.
 3. Renames the PBO if you've given it a different name, then removes everything else from the `addons` folder, such
    as old PBOs, their signatures and stray files, so nothing stale is uploaded. Folders in it are left alone, and the
    Workshop upload warns about them. Mods can share an output folder, such as a mod's client and server halves added
-   as two mods: the PBOs and signatures of the others built into it are kept.
+   as two mods: the PBOs and signatures of the others built into it are kept, as are the mod's own unticked PBOs
+   (see [PBOs](#pbos)).
 4. Signs each PBO with DSSignFile and copies the matching `.bikey` into the mod's `keys` folder, if signing is on.
 5. Puts a `mod.cpp` in the `@mod` folder, if that option is on: the mod's own, with its `version` set to the one in
    the mod's `CfgMods` class so the two always agree, or one written from that class if the mod hasn't got one. The
@@ -39,6 +40,10 @@ So the app picks the prefix first and then makes sure pboProject sees the source
 Like pboProject, the app treats each folder with a `config.cpp` (and no `config.cpp` above it) as a PBO. A mod with
 `config.cpp` in its root becomes one PBO. A mod made of several addon folders becomes one PBO per folder, each with a
 prefix such as `MyMod\gear\medical`.
+
+A mod of several PBOs has a tick box beside each under Packing. Unticking one leaves it out of the mod's builds: its
+last build and signatures stay in `addons`, and pboProject packs each ticked folder on its own rather than the whole
+mod. The choice is saved with the mod, and a PBO added to the mod later starts ticked.
 
 ## Things pboProject still controls
 

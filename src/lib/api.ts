@@ -29,6 +29,8 @@ export interface ModConfig {
   privateKeyPath: string | null;
   copyModCpp: boolean;
   convertPng: boolean;
+  /** The folders of the PBOs left out of builds, as each PBO's relDir. */
+  skippedPbos: string[];
   lastBuild: LastBuild | null;
 }
 
