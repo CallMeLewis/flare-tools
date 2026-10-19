@@ -239,7 +239,6 @@ export function SettingsDialog({
       onOpenChange={(next) => !next && onRequestClose()}
       section={section}
       onSectionChange={setSection}
-      description="The tools and defaults save with the button below. Everything else saves as you change it."
       sections={[
         {
           id: "tools",
