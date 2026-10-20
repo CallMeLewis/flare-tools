@@ -83,7 +83,9 @@ export function ModDialog({ open, onOpenChange, settings, mod, onSaved, onRemove
   const [saving, setSaving] = useState(false);
   // Asking whether to throw away edits, after the user tried to close the dialog.
   const [confirmDiscard, setConfirmDiscard] = useState(false);
-  const inspection = useInspection(draft.sourcePath, draft.prefix, draft.pboName);
+  // Counts each opening and each return to the app, so the folder is read again for changes made outside the app.
+  const [checks, setChecks] = useState(0);
+  const inspection = useInspection(draft.sourcePath, draft.prefix, draft.pboName, checks);
   const editing = Boolean(mod);
   const dirty = !sameMod(draft, mod ?? blankMod());
 
@@ -99,6 +101,14 @@ export function ModDialog({ open, onOpenChange, settings, mod, onSaved, onRemove
     setNameTouched(Boolean(mod));
     setOutputTouched(Boolean(mod));
   }, [open, mod]);
+
+  useEffect(() => {
+    if (!open) return;
+    setChecks((n) => n + 1);
+    const onFocus = () => setChecks((n) => n + 1);
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [open]);
 
   function update(patch: Partial<ModConfig>) {
     setDraft((current) => ({ ...current, ...patch }));

@@ -79,7 +79,7 @@ export function UploadDialog({
 }: UploadDialogProps) {
   const [contentPath, setContentPath] = useState("");
   const [changeNote, setChangeNote] = useState("");
-  const content = useContentSummary(contentPath);
+  const content = useContentSummary(contentPath, open);
   const isNew = !item;
   const publishing = Boolean(progress);
 
