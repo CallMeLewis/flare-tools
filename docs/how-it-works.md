@@ -11,7 +11,8 @@ What the Build and Workshop tools do behind the scenes, and why.
    left alone, and the Workshop upload warns about them. Because of this, the output folder can't be a whole drive, a
    DayZ or DayZ server install, or the mod's source folder. Mods can share an output folder, such as a mod's client
    and server halves added as two mods: the PBOs and signatures of the others built into it are kept, as are the
-   mod's own unticked PBOs (see [PBOs](#pbos)).
+   mod's own unticked PBOs (see [PBOs](#pbos)). A build that would write a PBO over one of the same name from another
+   mod in the folder stops before packing instead.
 4. Signs each PBO with DSSignFile and copies the matching `.bikey` into the mod's `keys` folder, if signing is on.
 5. Puts a `mod.cpp` in the `@mod` folder, if that option is on: the mod's own, with its `version` set to the one in
    the mod's `CfgMods` class so the two always agree, or one written from that class if the mod hasn't got one. In

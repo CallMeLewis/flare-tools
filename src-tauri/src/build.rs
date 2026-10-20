@@ -755,24 +755,50 @@ pub fn ticked_problem(m: &ModConfig, plan: &Inspection) -> Option<String> {
         .then(|| "Every PBO is unticked under Packing, so there's nothing to build.".into())
 }
 
-/// The PBOs that the other mods built into the same `@mod` folder produce, such as a mod's client and server
-/// halves, so building one doesn't remove the other's. Counts what each would pack now and what it last built.
-fn shared_pbos(settings: &Settings, m: &ModConfig, mods: &[ModConfig], output: &Path) -> Vec<String> {
+/// The other mods that build into the same `@mod` folder, such as a mod's client and server halves.
+fn sharing<'a>(m: &ModConfig, mods: &'a [ModConfig], output: &Path) -> impl Iterator<Item = &'a ModConfig> {
+    let (id, output) = (m.id.clone(), output.to_path_buf());
     mods.iter()
-        .filter(|other| other.id != m.id && !other.output_path.trim().is_empty())
-        .filter(|other| inspect::same_folder(Path::new(other.output_path.trim()), output))
+        .filter(move |other| other.id != id && !other.output_path.trim().is_empty())
+        .filter(move |other| inspect::same_folder(Path::new(other.output_path.trim()), &output))
+}
+
+fn plan_of(settings: &Settings, m: &ModConfig) -> Inspection {
+    inspect::inspect(&settings.p_drive, &m.source_path, m.prefix.as_deref(), m.pbo_name.as_deref())
+}
+
+/// The PBOs that the other mods built into the same `@mod` folder produce, so building one doesn't remove the
+/// other's. Counts what each would pack now and what it last built.
+fn shared_pbos(settings: &Settings, m: &ModConfig, mods: &[ModConfig], output: &Path) -> Vec<String> {
+    sharing(m, mods, output)
         .flat_map(|other| {
-            let plan = inspect::inspect(
-                &settings.p_drive,
-                &other.source_path,
-                other.prefix.as_deref(),
-                other.pbo_name.as_deref(),
-            );
             let last_built = other.last_build.iter().flat_map(|build| build.pbos.clone());
-            plan.pbos.into_iter().map(|pbo| pbo.name).chain(last_built)
+            plan_of(settings, other).pbos.into_iter().map(|pbo| pbo.name).chain(last_built)
         })
         .map(|name| format!("{name}.pbo"))
         .collect()
+}
+
+/// Why packing would overwrite a PBO another mod builds into the same `@mod` folder: one of the same name, or of the
+/// name pboProject writes before the app renames it.
+fn overwrite_problem(
+    settings: &Settings,
+    m: &ModConfig,
+    mods: &[ModConfig],
+    chosen: &[&PboPlan],
+    output: &Path,
+) -> Option<String> {
+    sharing(m, mods, output).find_map(|other| {
+        let theirs = plan_of(settings, other).pbos;
+        chosen.iter().flat_map(|pbo| [&pbo.packed_name, &pbo.name]).find_map(|name| {
+            theirs.iter().any(|pbo| pbo.name.eq_ignore_ascii_case(name)).then(|| {
+                format!(
+                    "pboProject would write {name}.pbo over the one {} builds into the same output folder. Rename one of the two PBOs.",
+                    other.name
+                )
+            })
+        })
+    })
 }
 
 /// The files in `addons` other than the PBOs a build just packed, and the PBOs and signatures of other mods built
@@ -915,6 +941,9 @@ fn build_steps(
     let addons = output.join("addons");
     fs::create_dir_all(&addons)
         .map_err(|e| Failure::new(Step::Prepare, format!("Couldn't create {}: {e}", addons.display())))?;
+    if let Some(problem) = overwrite_problem(settings, m, mods, &chosen, &output) {
+        return Err(Failure::new(Step::Prepare, problem));
+    }
     reporter.step(Step::Prepare, StepStatus::Done);
 
     // Pack
@@ -1048,10 +1077,7 @@ pub fn write_output(path: &Path, contents: impl AsRef<[u8]>) -> std::io::Result<
 /// Another mod built into the same `@mod` folder that brings a mod.cpp of its own, which a mod without one leaves in
 /// place, so building a mod's server half doesn't replace the mod.cpp of its client half.
 fn mod_cpp_owner<'a>(m: &ModConfig, mods: &'a [ModConfig], output: &Path) -> Option<&'a ModConfig> {
-    mods.iter()
-        .filter(|other| other.id != m.id && other.copy_mod_cpp && !other.output_path.trim().is_empty())
-        .filter(|other| inspect::same_folder(Path::new(other.output_path.trim()), output))
-        .find(|other| Path::new(&other.source_path).join("mod.cpp").is_file())
+    sharing(m, mods, output).find(|other| other.copy_mod_cpp && Path::new(&other.source_path).join("mod.cpp").is_file())
 }
 
 /// Puts a mod.cpp in the `@mod` folder: the mod's own with the version from its `CfgMods` class, so the two always
@@ -1261,6 +1287,43 @@ mod tests {
         assert!(ticked_problem(&unticking(&["gear"]), &plan).is_none());
         assert!(ticked_problem(&unticking(&["GEAR", "vehicles"]), &plan).is_some());
         fs::remove_dir_all(source).unwrap();
+    }
+
+    #[test]
+    fn wont_pack_over_a_pbo_another_mod_builds_into_the_same_folder() {
+        let root = std::env::temp_dir().join(format!("flare-tools-overwrite-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        let output = root.join("@Mod");
+        fs::create_dir_all(&output).unwrap();
+        for source in [r"a\Core", r"b\Core", r"c\Server"] {
+            fs::create_dir_all(root.join(source)).unwrap();
+            fs::write(root.join(source).join("config.cpp"), "").unwrap();
+        }
+        let config = |id: &str, source: &str, pbo_name: Option<&str>| -> ModConfig {
+            serde_json::from_value(serde_json::json!({
+                "id": id,
+                "name": id,
+                "sourcePath": root.join(source),
+                "outputPath": output,
+                "pboName": pbo_name,
+            }))
+            .unwrap()
+        };
+        let settings = Settings::default();
+        let check = |m: &ModConfig, mods: &[ModConfig]| {
+            let plan = plan_of(&settings, m);
+            let chosen: Vec<&PboPlan> = plan.pbos.iter().collect();
+            overwrite_problem(&settings, m, mods, &chosen, &output)
+        };
+
+        // pboProject writes Core.pbo before it's renamed to A_Core.pbo.
+        let renamed = config("renamed", r"a\Core", Some("A_Core"));
+        let core = config("core", r"b\Core", None);
+        let server = config("server", r"c\Server", None);
+        assert!(check(&renamed, &[renamed.clone(), core.clone()]).unwrap().contains("Core.pbo over the one core"));
+        assert!(check(&core, &[core.clone(), renamed.clone()]).is_none(), "A_Core.pbo is no threat to Core.pbo");
+        assert!(check(&server, &[server.clone(), core.clone(), renamed.clone()]).is_none());
+        fs::remove_dir_all(root).unwrap();
     }
 
     #[test]
