@@ -825,8 +825,20 @@ fn stale_files(addons: &Path, built: &[String], shared: &[String]) -> Vec<PathBu
     stale
 }
 
+/// Reads a pipe to its end on a thread of its own.
+fn read_all(pipe: Option<impl Read + Send + 'static>) -> thread::JoinHandle<Vec<u8>> {
+    thread::spawn(move || {
+        let mut bytes = Vec::new();
+        if let Some(mut pipe) = pipe {
+            let _ = pipe.read_to_end(&mut bytes);
+        }
+        bytes
+    })
+}
+
 fn sign_pbos(
     reporter: &mut Reporter,
+    control: &BuildControl,
     settings: &Settings,
     m: &ModConfig,
     output: &Path,
@@ -850,7 +862,7 @@ fn sign_pbos(
     for pbo in pbos.iter_mut() {
         let pbo_path = PathBuf::from(&pbo.path);
         reporter.log(Level::Command, format!("DSSignFile {} {}", quoted(&key), quoted(&pbo_path)));
-        let child = Command::new(&ds_sign)
+        let mut child = Command::new(&ds_sign)
             .arg(&key)
             .arg(&pbo_path)
             .creation_flags(CREATE_NO_WINDOW)
@@ -862,18 +874,35 @@ fn sign_pbos(
             .spawn()
             .map_err(|e| Failure::new(Step::Sign, format!("Couldn't start DSSignFile: {e}")))?;
         end_with_app(&child);
-        let result =
-            child.wait_with_output().map_err(|e| Failure::new(Step::Sign, format!("Lost track of DSSignFile: {e}")))?;
-        for line in
-            String::from_utf8_lossy(&result.stdout).lines().chain(String::from_utf8_lossy(&result.stderr).lines())
-        {
+        // Its output is read as it comes, so a full pipe can't stall it while it's watched for a cancel.
+        let (stdout, stderr) = (read_all(child.stdout.take()), read_all(child.stderr.take()));
+        let status = loop {
+            match child.try_wait() {
+                Ok(Some(status)) => break status,
+                Ok(None) if control.cancelled() => {
+                    kill_tree(child.id());
+                    let _ = child.wait();
+                    return Err(Failure {
+                        step: Step::Sign,
+                        message:
+                            "Build cancelled. Its PBOs are packed, but not all of them are signed until the next build."
+                                .into(),
+                        cancelled: true,
+                    });
+                }
+                Ok(None) => thread::sleep(POLL_INTERVAL),
+                Err(e) => return Err(Failure::new(Step::Sign, format!("Lost track of DSSignFile: {e}"))),
+            }
+        };
+        let (stdout, stderr) = (stdout.join().unwrap_or_default(), stderr.join().unwrap_or_default());
+        for line in String::from_utf8_lossy(&stdout).lines().chain(String::from_utf8_lossy(&stderr).lines()) {
             emit_log_line(reporter, line);
         }
         // DSSignFile names the signature after the key's own name, which needn't match its file's,
         // so look for whichever it wrote. The PBO's old signatures were removed after packing.
         let signed =
             pbo_path.parent().is_some_and(|addons| !signatures(addons, &format!("{}.pbo", pbo.name)).is_empty());
-        if !result.status.success() || !signed {
+        if !status.success() || !signed {
             return Err(Failure::new(Step::Sign, format!("DSSignFile couldn't sign {}.pbo.", pbo.name)));
         }
         pbo.signed = true;
@@ -1059,7 +1088,7 @@ fn build_steps(
     // Sign
     if m.sign {
         reporter.step(Step::Sign, StepStatus::Running);
-        sign_pbos(reporter, settings, m, &output, pbos)?;
+        sign_pbos(reporter, control, settings, m, &output, pbos)?;
         reporter.step(Step::Sign, StepStatus::Done);
     } else {
         reporter.step(Step::Sign, StepStatus::Skipped);
