@@ -385,11 +385,15 @@ async fn publish_item(app: AppHandle, request: PublishRequest) -> Result<Publish
         let outcome = STEAM.publish(&request, |progress| {
             let _ = handle.emit("publish-progress", progress);
         })?;
-        if let Some(path) = request.content_path.as_deref().map(str::trim) {
-            handle.state::<Store>().update(|data| {
+        // Steam has it either way, so a failed save doesn't fail the publish: reporting one would have a new item
+        // published again, which creates another.
+        if let Some(path) = request.content_path.as_deref().map(str::trim)
+            && let Err(error) = handle.state::<Store>().update(|data| {
                 data.workshop.insert(outcome.item_id.clone(), WorkshopLink { content_path: path.to_string() });
                 Ok(())
-            })?;
+            })
+        {
+            eprintln!("Couldn't save the item's folder: {error}");
         }
         Ok(outcome)
     })
