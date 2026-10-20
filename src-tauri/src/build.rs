@@ -985,11 +985,13 @@ fn build_steps(
 
     let stem = |p: &Path| p.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
     let mut missing = Vec::new();
+    let mut unplanned = written.clone();
     for planned in &chosen {
         let Some(packed) = written.iter().find(|p| stem(p).eq_ignore_ascii_case(&planned.packed_name)) else {
             missing.push(format!("{}.pbo", planned.packed_name));
             continue;
         };
+        unplanned.retain(|p| p != packed);
         let mut path = packed.clone();
         if !planned.packed_name.eq_ignore_ascii_case(&planned.name) {
             let target = addons.join(format!("{}.pbo", planned.name));
@@ -1015,6 +1017,22 @@ fn build_steps(
             Step::Pack,
             format!("pboProject didn't write {}. Check its log above.", missing.join(", ")),
         ));
+    }
+    // pboProject can find a PBO folder that the app's search doesn't, such as one nested very deep. It's as much a
+    // part of the build as the rest, so it's signed with them rather than cleared out as stale.
+    for path in unplanned {
+        let name = stem(&path);
+        reporter.log(
+            Level::Warning,
+            format!("Keeping {name}.pbo, which pboProject also packed, from a folder Flare Tools didn't look in"),
+        );
+        pbos.push(BuiltPbo {
+            size: fs::metadata(&path).map(|m| m.len()).unwrap_or(0),
+            path: path.to_string_lossy().into_owned(),
+            name,
+            prefix: None,
+            signed: false,
+        });
     }
     pbos.sort_by(|a, b| a.name.cmp(&b.name));
 
