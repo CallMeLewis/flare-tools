@@ -1014,17 +1014,36 @@ fn build_steps(
     // Finish
     reporter.step(Step::Finish, StepStatus::Running);
     if m.copy_mod_cpp {
-        add_mod_cpp(reporter, m, &output)?;
+        add_mod_cpp(reporter, m, mods, &output)?;
     }
     reporter.step(Step::Finish, StepStatus::Done);
     Ok(())
 }
 
+/// Another mod built into the same `@mod` folder that brings a mod.cpp of its own, which a mod without one leaves in
+/// place, so building a mod's server half doesn't replace the mod.cpp of its client half.
+fn mod_cpp_owner<'a>(m: &ModConfig, mods: &'a [ModConfig], output: &Path) -> Option<&'a ModConfig> {
+    mods.iter()
+        .filter(|other| other.id != m.id && other.copy_mod_cpp && !other.output_path.trim().is_empty())
+        .filter(|other| inspect::same_folder(Path::new(other.output_path.trim()), output))
+        .find(|other| Path::new(&other.source_path).join("mod.cpp").is_file())
+}
+
 /// Puts a mod.cpp in the `@mod` folder: the mod's own with the version from its `CfgMods` class, so the two always
 /// agree, or one written from that class if the mod hasn't got one.
-fn add_mod_cpp(reporter: &mut Reporter, m: &ModConfig, output: &Path) -> Result<(), Failure> {
+fn add_mod_cpp(reporter: &mut Reporter, m: &ModConfig, mods: &[ModConfig], output: &Path) -> Result<(), Failure> {
     let source = Path::new(&m.source_path).join("mod.cpp");
     let target = output.join("mod.cpp");
+    if !source.is_file()
+        && target.is_file()
+        && let Some(owner) = mod_cpp_owner(m, mods, output)
+    {
+        reporter.log(
+            Level::Info,
+            format!("Left mod.cpp as it is, since {} builds into the same folder and has its own", owner.name),
+        );
+        return Ok(());
+    }
     let fail = |e: std::io::Error| Failure::new(Step::Finish, format!("Couldn't write mod.cpp: {e}"));
     let cfg_mods = inspect::cfg_mods_fields(Path::new(&m.source_path));
     let version = cfg_mods.iter().find(|(key, value)| key == "version" && !value.is_empty()).map(|(_, v)| v.as_str());
@@ -1158,6 +1177,39 @@ mod tests {
         buffer.extend_from_slice(&text[split..]);
         assert_eq!(take_lines(&mut buffer), ["Processing \\Müller\r\n", "Prefix = Müller\r\n"]);
         assert!(buffer.is_empty());
+    }
+
+    #[test]
+    fn leaves_a_shared_folders_mod_cpp_to_the_mod_that_has_one() {
+        let root = std::env::temp_dir().join(format!("flare-tools-shared-mod-cpp-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        let output = root.join("@MyMod");
+        for dir in ["Client", "Server", "Other", "@Other"] {
+            fs::create_dir_all(root.join(dir)).unwrap();
+        }
+        fs::create_dir_all(&output).unwrap();
+        fs::write(root.join(r"Client\mod.cpp"), "name = \"My Mod\";").unwrap();
+        let config = |id: &str, source: &str, output: &Path| -> ModConfig {
+            serde_json::from_value(serde_json::json!({
+                "id": id,
+                "name": id,
+                "sourcePath": root.join(source),
+                "outputPath": output,
+            }))
+            .unwrap()
+        };
+        let client = config("client", "Client", &output);
+        let server = config("server", "Server", &output);
+        let other = config("other", "Other", &root.join("@Other"));
+        let mods = [client.clone(), server.clone(), other.clone()];
+
+        assert_eq!(mod_cpp_owner(&server, &mods, &output).map(|m| m.id.as_str()), Some("client"));
+        assert!(mod_cpp_owner(&client, &mods, &output).is_none(), "a mod's own mod.cpp is never left behind");
+        assert!(mod_cpp_owner(&other, &mods, &root.join("@Other")).is_none(), "only mods in the same folder count");
+        let mut without = client.clone();
+        without.copy_mod_cpp = false;
+        assert!(mod_cpp_owner(&server, &[without, server.clone()], &output).is_none());
+        fs::remove_dir_all(root).unwrap();
     }
 
     #[test]

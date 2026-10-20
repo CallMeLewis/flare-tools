@@ -14,8 +14,9 @@ What the Build and Workshop tools do behind the scenes, and why.
    mod's own unticked PBOs (see [PBOs](#pbos)).
 4. Signs each PBO with DSSignFile and copies the matching `.bikey` into the mod's `keys` folder, if signing is on.
 5. Puts a `mod.cpp` in the `@mod` folder, if that option is on: the mod's own, with its `version` set to the one in
-   the mod's `CfgMods` class so the two always agree, or one written from that class if the mod hasn't got one. The
-   mod's source folder is never changed.
+   the mod's `CfgMods` class so the two always agree, or one written from that class if the mod hasn't got one. In
+   an output folder shared with a mod that has a `mod.cpp` of its own, a mod without one leaves that mod's in place.
+   The mod's source folder is never changed.
 
 Output follows the usual layout: `@Mod\addons\*.pbo`, `*.bisign` next to each PBO, and `@Mod\keys\*.bikey`.
 
