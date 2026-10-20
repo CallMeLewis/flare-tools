@@ -69,13 +69,19 @@ export function WorkshopTool({ active, steamOnline, onBusyChange }: WorkshopTool
   const [createdForNew, setCreatedForNew] = useState<string | null>(null);
   // A new item that's published but that Steam doesn't list yet. Its page opens once it does, rather than another's.
   const [listing, setListing] = useState<{ id: string; title: string; tries: number } | null>(null);
+  // The item being deleted, and those deleted this session. Steam can go on listing a deleted item for a while, so
+  // they're left out of the list.
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const deletedIds = useRef(new Set<string>());
 
   const refresh = useCallback(async () => {
     setRefreshing(true);
     try {
       const status = await api.steamStatus();
       setSteam(status);
-      if (status.state === "ready") setItems(await api.workshopItems());
+      if (status.state === "ready") {
+        setItems((await api.workshopItems()).filter((item) => !deletedIds.current.has(item.id)));
+      }
     } catch (error) {
       toast.error("Couldn't load your Workshop items", { description: errorMessage(error) });
     } finally {
@@ -94,7 +100,8 @@ export function WorkshopTool({ active, steamOnline, onBusyChange }: WorkshopTool
     if (active) void api.getData().then((data) => setMods(data.mods));
   }, [active]);
 
-  useEffect(() => onBusyChange(publishing !== null), [publishing, onBusyChange]);
+  const busy = publishing !== null || deleting !== null;
+  useEffect(() => onBusyChange(busy), [busy, onBusyChange]);
 
   useEffect(() => {
     const unlisten = onPublishProgress((progress) =>
@@ -190,6 +197,24 @@ export function WorkshopTool({ active, steamOnline, onBusyChange }: WorkshopTool
       return false;
     } finally {
       setPublishing(null);
+    }
+  }
+
+  /** Deletes an item from the Workshop and moves to the next one. Resolves to whether Steam deleted it. */
+  async function deleteItem(item: WorkshopItem): Promise<boolean> {
+    setDeleting(item.id);
+    try {
+      await api.deleteItem(item.id);
+      deletedIds.current.add(item.id);
+      setItems((current) => current && current.filter((i) => i.id !== item.id));
+      if (editorKeyRef.current === item.id) select(null);
+      toast.success(`${item.title} deleted`, { description: "It's gone from the Workshop." });
+      return true;
+    } catch (error) {
+      toast.error(`Couldn't delete ${item.title}`, { description: errorMessage(error) });
+      return false;
+    } finally {
+      setDeleting(null);
     }
   }
 
@@ -292,9 +317,11 @@ export function WorkshopTool({ active, steamOnline, onBusyChange }: WorkshopTool
             item={showingNew ? null : selected}
             mods={mods}
             progress={publishing?.key === editorKey ? publishing.progress : null}
-            busy={publishing !== null}
+            busy={busy}
+            deleting={deleting !== null && deleting === editorKey}
             offline={!steamOnline || unreachable}
             onPublish={publish}
+            onDelete={selected && !showingNew ? () => deleteItem(selected) : undefined}
             onDiscardNew={() => requestSelect(items?.[0]?.id ?? null)}
             onDirtyChange={setDirty}
           />

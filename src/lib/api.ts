@@ -256,6 +256,7 @@ export const api = {
   readFile: (path: string) => invoke<ArrayBuffer>("read_file", { path }),
   inspectContent: (path: string) => invoke<ContentSummary>("inspect_content", { path }),
   publishItem: (request: PublishRequest) => invoke<PublishOutcome>("publish_item", { request }),
+  deleteItem: (id: string) => invoke<void>("delete_item", { id }),
 };
 
 export function onPublishProgress(handler: (progress: PublishProgress) => void): Promise<UnlistenFn> {

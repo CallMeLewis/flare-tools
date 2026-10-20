@@ -401,6 +401,24 @@ async fn publish_item(app: AppHandle, request: PublishRequest) -> Result<Publish
     .map_err(|e| PublishError::from(e.to_string()))?
 }
 
+#[tauri::command]
+async fn delete_item(app: AppHandle, id: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        STEAM.delete(&id)?;
+        // The item is gone from Steam either way, so forgetting its folder and stats is only tidying up.
+        if let Err(error) = app.state::<Store>().update(|data| {
+            data.workshop.remove(&id);
+            data.history.remove(&id);
+            Ok(())
+        }) {
+            eprintln!("Couldn't forget the deleted item: {error}");
+        }
+        Ok(())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default();
@@ -457,6 +475,7 @@ pub fn run() {
             workshop_items,
             inspect_content,
             publish_item,
+            delete_item,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

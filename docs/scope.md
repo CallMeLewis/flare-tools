@@ -11,8 +11,8 @@ three steps:
 - **Build:** adding a mod once, working out its prefix and PBOs, linking it onto the P: drive, packing it with
   pboProject, the build log and history, and building every changed mod at once.
 - **Sign:** signing each PBO with DSSignFile, choosing the key, and putting the `.bikey` in the mod's `keys` folder.
-- **Publish:** creating and updating Steam Workshop items: the page, preview image, files and change notes, and the
-  item's stats.
+- **Publish:** creating, updating and deleting Steam Workshop items: the page, preview image, files and change notes,
+  and the item's stats.
 
 Around that sits what any desktop app needs: updating itself, themes, interface size, finding the tools on first run
 and waiting for Steam.

@@ -6,6 +6,7 @@ import {
   ImageUpIcon,
   RotateCcwIcon,
   SaveIcon,
+  Trash2Icon,
   UploadCloudIcon,
 } from "lucide-react";
 
@@ -29,6 +30,7 @@ import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@flare/ui/ui/input";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@flare/ui/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@flare/ui/ui/tabs";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@flare/ui/ui/tooltip";
 import { Spinner } from "@/components/ui/spinner";
 import { Toggle } from "@/components/ui/toggle";
 import { ToolPageHeader } from "@/components/tool-page";
@@ -64,8 +66,12 @@ interface ItemEditorProps {
   busy: boolean;
   /** Steam has gone away. The page can still be edited, but nothing can be sent until it's back. */
   offline: boolean;
+  /** True while this item is being deleted. */
+  deleting: boolean;
   /** Resolves to whether Steam accepted the update. */
   onPublish: (request: PublishRequest) => Promise<boolean>;
+  /** Deletes the item from the Workshop, resolving to whether Steam did. Missing for a new item. */
+  onDelete?: () => Promise<boolean>;
   onDiscardNew: () => void;
   /** Whether the page has edits that would be lost by leaving it. */
   onDirtyChange: (dirty: boolean) => void;
@@ -185,8 +191,10 @@ export function ItemEditor({
   mods,
   progress,
   busy,
+  deleting,
   offline,
   onPublish,
+  onDelete,
   onDiscardNew,
   onDirtyChange,
 }: ItemEditorProps) {
@@ -195,12 +203,13 @@ export function ItemEditor({
   const [uploadOpen, setUploadOpen] = useState(false);
   const [uploaded, setUploaded] = useState(false);
   const [confirmUndo, setConfirmUndo] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [trend, setTrend] = useState<keyof ItemStats>("subscriptions");
   const preview = useLocalImage(page.previewPath);
   const isNew = !item;
   const publishing = Boolean(progress);
   // Inputs are locked while anything about this item is on its way to Steam.
-  const locked = publishing || saving;
+  const locked = publishing || saving || deleting;
 
   const pageChanged =
     !item ||
@@ -337,6 +346,7 @@ export function ItemEditor({
   }
 
   const title = page.title.trim() || (isNew ? "New item" : "Untitled");
+  const subscribers = item?.stats.subscriptions ?? 0;
   // A new item without a picture chosen is published with the default one.
   const previewSrc = preview?.url ?? item?.previewUrl ?? (isNew ? defaultPreview : null);
 
@@ -373,6 +383,52 @@ export function ItemEditor({
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
+          {item && onDelete && (
+            <AlertDialog open={confirmDelete} onOpenChange={(next) => !deleting && setConfirmDelete(next)}>
+              <DisabledHint reason={!locked && blocked ? busyHint : null}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setConfirmDelete(true)}
+                      disabled={locked || blocked}
+                      aria-label="Delete from the Workshop"
+                    >
+                      <Trash2Icon />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">Delete from the Workshop</TooltipContent>
+                </Tooltip>
+              </DisabledHint>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete {item.title || "this item"} from the Workshop?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Steam deletes its page and files for good
+                    {subscribers > 0 &&
+                      `, and its ${compactNumber(subscribers)} ${subscribers === 1 ? "subscriber loses" : "subscribers lose"} the mod`}
+                    .{pageChanged && " The edits you haven't saved are lost too."} This can't be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel disabled={deleting}>Keep it</AlertDialogCancel>
+                  <AlertDialogAction
+                    variant="destructive"
+                    disabled={deleting}
+                    onClick={async (event) => {
+                      // Stays open until Steam answers, so the item can't be left mid-delete.
+                      event.preventDefault();
+                      if (!(await onDelete())) setConfirmDelete(false);
+                    }}
+                  >
+                    {deleting && <Spinner data-icon="inline-start" />}
+                    {deleting ? "Deleting…" : "Delete item"}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
           {item ? (
             <Button variant="ghost" onClick={() => openLink(workshopUrl(item.id))}>
               <ExternalLinkIcon data-icon="inline-start" />

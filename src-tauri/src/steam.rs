@@ -419,6 +419,19 @@ impl Steam {
         }
     }
 
+    /// Deletes an item from the Workshop for good, along with its files.
+    pub fn delete(&'static self, id: &str) -> Result<(), String> {
+        let id = parse_id(id)?;
+        let session = self.session()?;
+        let ugc = session.client.ugc();
+        wait(|tx| {
+            ugc.delete_item(id, move |result| {
+                let _ = tx.send(result);
+            })
+        })?
+        .map_err(steam_error)
+    }
+
     /// Lists the DayZ Workshop items the signed-in user has published, newest update first.
     pub fn items(&'static self) -> Result<Vec<WorkshopItem>, String> {
         let session = self.session()?;
