@@ -36,6 +36,9 @@ import { cn } from "@/lib/utils";
 
 const SELECTED_KEY = "selectedWorkshopItem";
 const NEW = "new";
+/** How many times to look again for a new item that Steam hasn't listed yet, and how long to wait between. */
+const LISTING_TRIES = 10;
+const LISTING_WAIT_MS = 2000;
 const AGREEMENT_URL = steamUrl("https://steamcommunity.com/sharedfiles/workshoplegalagreement");
 
 interface WorkshopToolProps {
@@ -64,6 +67,8 @@ export function WorkshopTool({ active, steamOnline, onBusyChange }: WorkshopTool
   // The item Steam created for the new item's first publish before the rest of it failed. Publishing again
   // finishes that item, rather than leaving it empty and creating another.
   const [createdForNew, setCreatedForNew] = useState<string | null>(null);
+  // A new item that's published but that Steam doesn't list yet. Its page opens once it does, rather than another's.
+  const [listing, setListing] = useState<{ id: string; title: string; tries: number } | null>(null);
 
   const refresh = useCallback(async () => {
     setRefreshing(true);
@@ -98,14 +103,32 @@ export function WorkshopTool({ active, steamOnline, onBusyChange }: WorkshopTool
     return () => void unlisten.then((stop) => stop());
   }, []);
 
-  const selected = selectedId === NEW ? null : (items?.find((i) => i.id === selectedId) ?? items?.[0] ?? null);
+  const awaitingListing = listing !== null && selectedId === listing.id && !items?.some((i) => i.id === listing.id);
+  const selected =
+    selectedId === NEW || awaitingListing
+      ? null
+      : (items?.find((i) => i.id === selectedId) ?? items?.[0] ?? null);
   const showingNew = selectedId === NEW;
+
+  useEffect(() => {
+    if (!listing) return;
+    if (items?.some((i) => i.id === listing.id)) {
+      setListing(null);
+      return;
+    }
+    if (listing.tries >= LISTING_TRIES) return;
+    const timer = setTimeout(() => {
+      void refresh().then(() => setListing((current) => current && { ...current, tries: current.tries + 1 }));
+    }, LISTING_WAIT_MS);
+    return () => clearTimeout(timer);
+  }, [listing, items, refresh]);
 
   function select(id: string | null) {
     setSelectedId(id);
     // The editor remounts for the new item, so nothing is dirty until it says otherwise.
     setDirty(false);
     setCreatedForNew(null);
+    setListing(null);
     if (id && id !== NEW) localStorage.setItem(SELECTED_KEY, id);
   }
 
@@ -133,7 +156,10 @@ export function WorkshopTool({ active, steamOnline, onBusyChange }: WorkshopTool
       const outcome = await api.publishItem(request);
       await refresh();
       // A new item moves to its own page, unless the user has gone elsewhere in the meantime.
-      if (key === NEW && editorKeyRef.current === NEW) select(outcome.itemId);
+      if (key === NEW && editorKeyRef.current === NEW) {
+        select(outcome.itemId);
+        setListing({ id: outcome.itemId, title: request.title, tries: 0 });
+      }
       if (outcome.needsAgreement) {
         toast.warning(`${request.title} is published, but hidden`, {
           description: "Steam won't show it until you accept the Workshop legal agreement.",
@@ -236,6 +262,27 @@ export function WorkshopTool({ active, steamOnline, onBusyChange }: WorkshopTool
               <Button variant="outline" onClick={() => void refresh()} disabled={refreshing}>
                 {refreshing ? <Spinner data-icon="inline-start" /> : <RefreshCwIcon data-icon="inline-start" />}
                 Try again
+              </Button>
+            </EmptyContent>
+          </Empty>
+        ) : awaitingListing && listing.tries < LISTING_TRIES ? (
+          <div className="flex flex-1 flex-col items-center justify-center gap-3 text-sm text-muted-foreground">
+            <Spinner className="size-5" />
+            <p>Waiting for Steam to list {listing.title}…</p>
+          </div>
+        ) : awaitingListing ? (
+          <Empty className="flex-1">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <UploadCloudIcon />
+              </EmptyMedia>
+              <EmptyTitle>{listing.title} is published</EmptyTitle>
+              <EmptyDescription>Steam hasn't listed it yet. Refresh in a moment to open its page.</EmptyDescription>
+            </EmptyHeader>
+            <EmptyContent>
+              <Button variant="outline" onClick={() => void refresh()} disabled={refreshing}>
+                {refreshing ? <Spinner data-icon="inline-start" /> : <RefreshCwIcon data-icon="inline-start" />}
+                Refresh
               </Button>
             </EmptyContent>
           </Empty>
