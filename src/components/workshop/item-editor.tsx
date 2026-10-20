@@ -389,7 +389,7 @@ export function ItemEditor({
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
-                      variant="ghost"
+                      variant="outline"
                       size="icon"
                       onClick={() => setConfirmDelete(true)}
                       disabled={locked || blocked}
@@ -430,12 +430,12 @@ export function ItemEditor({
             </AlertDialog>
           )}
           {item ? (
-            <Button variant="ghost" onClick={() => openLink(workshopUrl(item.id))}>
+            <Button variant="outline" onClick={() => openLink(workshopUrl(item.id))}>
               <ExternalLinkIcon data-icon="inline-start" />
               View on Steam
             </Button>
           ) : (
-            <Button variant="ghost" onClick={onDiscardNew} disabled={locked}>
+            <Button variant="outline" onClick={onDiscardNew} disabled={locked}>
               Discard
             </Button>
           )}
@@ -592,7 +592,7 @@ export function ItemEditor({
                   </p>
                   <AlertDialog open={confirmUndo} onOpenChange={setConfirmUndo}>
                     <AlertDialogTrigger asChild>
-                      <Button variant="ghost" size="sm" disabled={locked}>
+                      <Button variant="outline" size="sm" disabled={locked}>
                         Discard
                       </Button>
                     </AlertDialogTrigger>

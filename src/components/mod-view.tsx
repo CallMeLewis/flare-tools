@@ -162,7 +162,7 @@ export function ModView({
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <Button variant="ghost" onClick={() => openFolder(mod.outputPath)}>
+          <Button variant="outline" onClick={() => openFolder(mod.outputPath)}>
             <FolderOpenIcon data-icon="inline-start" />
             Open output
           </Button>
