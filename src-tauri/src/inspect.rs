@@ -247,8 +247,11 @@ fn block_after(text: &str, from: usize) -> Option<&str> {
 }
 
 /// `key = value;` statements at the top level of a class body, with keys lower-cased and
-/// string values unquoted. Nested classes are skipped.
+/// string values unquoted. Nested classes and preprocessor lines are skipped, and so are values that are a macro's
+/// name, such as `version = MOD_VERSION;`, since what the macro stands for isn't known.
 fn assignments(body: &str) -> Vec<(String, String)> {
+    let body: String =
+        body.lines().filter(|line| !line.trim_start().starts_with('#')).map(|line| format!("{line}\n")).collect();
     let mut found = Vec::new();
     let mut depth = 0usize;
     let mut in_string = false;
@@ -265,9 +268,10 @@ fn assignments(body: &str) -> Vec<(String, String)> {
                 statement.clear();
             }
             ';' if !in_string && depth == 0 => {
-                if let Some((key, value)) = statement.split_once('=') {
-                    let value = value.trim().trim_matches('"').trim();
-                    found.push((key.trim().to_ascii_lowercase(), value.to_string()));
+                if let Some((key, value)) = statement.split_once('=')
+                    && let Some(value) = config_value(value.trim())
+                {
+                    found.push((key.trim().to_ascii_lowercase(), value));
                 }
                 statement.clear();
             }
@@ -276,6 +280,17 @@ fn assignments(body: &str) -> Vec<(String, String)> {
         }
     }
     found
+}
+
+/// A value from a config: a string without its quotes, where `""` stands for one quote, or anything else as written
+/// unless it's a macro's name.
+fn config_value(value: &str) -> Option<String> {
+    if let Some(inner) = value.strip_prefix('"').and_then(|v| v.strip_suffix('"')) {
+        return Some(inner.replace("\"\"", "\"").trim().to_string());
+    }
+    let macro_name = value.starts_with(|c: char| c.is_ascii_alphabetic() || c == '_')
+        && value.chars().all(|c| c.is_ascii_alphanumeric() || c == '_');
+    (!macro_name).then(|| value.to_string())
 }
 
 fn meta_from(fields: &[(String, String)]) -> Option<ModMeta> {
@@ -555,6 +570,15 @@ pub fn inspect(p_drive: &str, source_path: &str, prefix_override: Option<&str>, 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn reads_cfg_mods_values_as_dayz_does() {
+        let text = "class CfgMods {\n  class MyMod {\n    #include \"version.hpp\"\n    name = \"Say \"\"hi\"\"\";\n    author = AUTHOR;\n    version = 1.2;\n  };\n};";
+        let meta = cfg_mods_meta(text).unwrap();
+        assert_eq!(meta.name.as_deref(), Some("Say \"hi\""));
+        assert_eq!(meta.author, None, "a macro's value isn't known");
+        assert_eq!(meta.version.as_deref(), Some("1.2"), "the line after #include is still read");
+    }
 
     #[test]
     fn reads_configs_that_arent_utf8() {

@@ -46,7 +46,10 @@ pub fn with_version(text: &str, version: &str) -> Option<String> {
     match version_value(text) {
         Some(range) => {
             let current = text[range.clone()].trim_matches('"');
-            (current != version).then(|| format!("{}{}{}", &text[..range.start], quoted(version), &text[range.end..]))
+            // A version left without its `;` gets one, so the line after it isn't read as part of it.
+            let end = if text[range.end..].trim_start().starts_with(';') { "" } else { ";" };
+            (current != version)
+                .then(|| format!("{}{}{end}{}", &text[..range.start], quoted(version), &text[range.end..]))
         }
         None => {
             let newline = if text.contains("\r\n") { "\r\n" } else { "\n" };
@@ -60,7 +63,8 @@ pub fn with_version(text: &str, version: &str) -> Option<String> {
     }
 }
 
-/// Where the value of the top-level `version = ...;` sits, skipping comments, strings and classes.
+/// Where the value of the top-level `version = ...;` sits, skipping comments, strings, classes and preprocessor lines
+/// such as `#include`. A value without its `;` ends with its line.
 fn version_value(text: &str) -> Option<Range<usize>> {
     let bytes = text.as_bytes();
     let mut i = if text.starts_with('\u{feff}') { 3 } else { 0 };
@@ -85,6 +89,13 @@ fn version_value(text: &str) -> Option<Range<usize>> {
                     i += 1;
                 }
                 i += 2;
+                continue;
+            }
+            b'#' if text[..i].rsplit('\n').next().is_some_and(|line| line.trim().is_empty()) => {
+                while i < bytes.len() && bytes[i] != b'\n' {
+                    i += 1;
+                }
+                statement_start = true;
                 continue;
             }
             b'{' | b'}' | b';' => {
@@ -112,7 +123,7 @@ fn version_value(text: &str) -> Option<Range<usize>> {
                             start += 1;
                         }
                         let mut end = start;
-                        while end < bytes.len() && bytes[end] != b';' {
+                        while end < bytes.len() && bytes[end] != b';' && bytes[end] != b'\n' {
                             end = if bytes[end] == b'"' { string_end(bytes, end) } else { end + 1 };
                         }
                         let end = end.min(bytes.len());
@@ -165,6 +176,18 @@ mod tests {
         assert_eq!(with_version(text, "1.0").unwrap(), format!("{text}version = \"1.0\";\n"));
         assert_eq!(with_version("name = \"A\";", "1.0").unwrap(), "name = \"A\";\nversion = \"1.0\";\n");
         assert_eq!(with_version("versionNote = \"x\";", "1.0").unwrap(), "versionNote = \"x\";\nversion = \"1.0\";\n");
+    }
+
+    #[test]
+    fn finds_the_version_after_a_preprocessor_line() {
+        let text = "#include \"common.hpp\"\r\nversion = \"1.0\";\r\n";
+        assert_eq!(with_version(text, "1.1").unwrap(), "#include \"common.hpp\"\r\nversion = \"1.1\";\r\n");
+    }
+
+    #[test]
+    fn keeps_the_line_after_a_version_without_its_semicolon() {
+        let text = "version = \"1.0\"\nauthor = \"Y\";\n";
+        assert_eq!(with_version(text, "1.1").unwrap(), "version = \"1.1\";\nauthor = \"Y\";\n");
     }
 
     #[test]
