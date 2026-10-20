@@ -61,6 +61,36 @@ fn unloaded(addons: &Path) -> Option<String> {
     (!names.is_empty()).then(|| format!("DayZ won't load {} from the addons folder.", names.join(", ")))
 }
 
+/// The names of the `.bikey` files in `keys`, as servers match them to signatures: the name written at the start of
+/// each key, which DSSignFile names signatures after and needn't match its file's. A key that can't be read counts by
+/// its file's name.
+fn key_names(keys: &Path) -> Vec<String> {
+    stems(keys, "bikey")
+        .into_iter()
+        .map(|stem| {
+            fs::read(keys.join(format!("{stem}.bikey")))
+                .ok()
+                .and_then(|bytes| {
+                    Some(String::from_utf8_lossy(&bytes[..bytes.iter().position(|&b| b == 0)?]).into_owned())
+                })
+                .filter(|name| !name.is_empty())
+                .unwrap_or(stem)
+        })
+        .collect()
+}
+
+/// The keys a PBO is signed with, from the names of its signatures: `<pbo>.pbo.<key>.bisign`.
+fn signing_keys(pbo: &str, signatures: &[String]) -> Vec<String> {
+    let prefix = format!("{pbo}.pbo.");
+    signatures
+        .iter()
+        .filter(|name| name.get(..prefix.len()).is_some_and(|head| head.eq_ignore_ascii_case(&prefix)))
+        .filter_map(|name| name.get(prefix.len()..name.len() - ".bisign".len()))
+        .filter(|key| !key.is_empty())
+        .map(str::to_string)
+        .collect()
+}
+
 fn count(dir: &Path, summary: &mut ContentSummary) {
     let Ok(entries) = fs::read_dir(dir) else { return };
     for entry in entries.flatten() {
@@ -90,7 +120,9 @@ pub fn inspect(path: &str) -> ContentSummary {
 
     let addons = child_dir(root, "addons");
     summary.pbos = addons.as_deref().map(|d| stems(d, "pbo")).unwrap_or_default();
-    summary.keys = child_dir(root, "keys").map(|d| stems(&d, "bikey")).unwrap_or_default();
+    let keys = child_dir(root, "keys");
+    summary.keys = keys.as_deref().map(|d| stems(d, "bikey")).unwrap_or_default();
+    let key_names = keys.as_deref().map(key_names).unwrap_or_default();
     summary.has_mod_cpp = root.join("mod.cpp").is_file();
 
     match &addons {
@@ -107,24 +139,41 @@ pub fn inspect(path: &str) -> ContentSummary {
                 .into_iter()
                 .flatten()
                 .flatten()
-                .map(|e| e.file_name().to_string_lossy().to_lowercase())
-                .filter(|n| n.ends_with(".bisign"))
+                .map(|e| e.file_name().to_string_lossy().into_owned())
+                .filter(|n| n.to_ascii_lowercase().ends_with(".bisign"))
                 .collect();
-            let unsigned = summary
-                .pbos
-                .iter()
-                .filter(|pbo| !signatures.iter().any(|s| s.starts_with(&format!("{}.pbo.", pbo.to_lowercase()))))
-                .count();
+            let signed_with: Vec<Vec<String>> = summary.pbos.iter().map(|pbo| signing_keys(pbo, &signatures)).collect();
+            let unsigned = signed_with.iter().filter(|keys| keys.is_empty()).count();
+            let has_key = |key: &String| key_names.iter().any(|k| k.eq_ignore_ascii_case(key));
+            // A server only accepts a signature whose key it has, from a .bikey of the same name.
+            let unmatched: Vec<&Vec<String>> =
+                signed_with.iter().filter(|keys| !keys.is_empty() && !keys.iter().any(has_key)).collect();
             if unsigned > 0 {
                 summary.warnings.push(if unsigned == summary.pbos.len() {
                     "The PBOs aren't signed, so servers that check signatures will kick players.".into()
                 } else {
-                    format!("{unsigned} of the PBOs aren't signed.")
+                    format!("{unsigned} of the PBOs {} signed.", if unsigned == 1 { "isn't" } else { "aren't" })
                 });
             } else if summary.keys.is_empty() {
                 summary
                     .warnings
                     .push("The PBOs are signed but there's no .bikey in a keys folder for servers to use.".into());
+            } else if !unmatched.is_empty() {
+                let mut missing: Vec<&String> = unmatched.iter().flat_map(|keys| keys.iter()).collect();
+                missing.sort_by_key(|key| key.to_lowercase());
+                missing.dedup_by_key(|key| key.to_lowercase());
+                let missing = missing.iter().map(|key| key.as_str()).collect::<Vec<_>>().join(", ");
+                summary.warnings.push(if unmatched.len() == summary.pbos.len() {
+                    format!(
+                        "The PBOs are signed with {missing}, but the keys folder has no .bikey of that name, so servers that check signatures will kick players."
+                    )
+                } else {
+                    format!(
+                        "{} of the PBOs {} signed with {missing}, but the keys folder has no .bikey of that name.",
+                        unmatched.len(),
+                        if unmatched.len() == 1 { "is" } else { "are" }
+                    )
+                });
             }
         }
     }
@@ -147,6 +196,47 @@ mod tests {
         let summary = inspect(&root.to_string_lossy());
         assert!(summary.warnings.contains(&"DayZ won't load mod.cpp, old from the addons folder.".to_string()));
 
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn warns_when_the_keys_dont_match_the_signatures() {
+        let root = std::env::temp_dir().join(format!("flare-tools-content-keys-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        let addons = root.join("addons");
+        let keys = root.join("keys");
+        fs::create_dir_all(&addons).unwrap();
+        fs::create_dir_all(&keys).unwrap();
+        let warnings = |files: &[&str], key_files: &[&str]| {
+            for dir in [&addons, &keys] {
+                for entry in fs::read_dir(dir).unwrap() {
+                    fs::remove_file(entry.unwrap().path()).unwrap();
+                }
+            }
+            for file in files {
+                fs::write(addons.join(file), "").unwrap();
+            }
+            for file in key_files {
+                fs::write(keys.join(file), "").unwrap();
+            }
+            inspect(&root.to_string_lossy()).warnings
+        };
+
+        assert!(warnings(&["A.pbo", "A.pbo.My.Key.bisign"], &["my.key.bikey"]).is_empty());
+        // Servers go by the name written in the key, which a renamed file keeps.
+        warnings(&["A.pbo", "A.pbo.Old.bisign"], &[]);
+        fs::write(keys.join("Renamed.bikey"), b"Old\0\x94\0\0\0").unwrap();
+        assert!(inspect(&root.to_string_lossy()).warnings.is_empty());
+        assert_eq!(
+            warnings(&["A.pbo", "A.pbo.Old.bisign", "B.pbo", "B.pbo.Old.bisign"], &["New.bikey"]),
+            [
+                "The PBOs are signed with Old, but the keys folder has no .bikey of that name, so servers that check signatures will kick players."
+            ]
+        );
+        assert_eq!(
+            warnings(&["A.pbo", "A.pbo.New.bisign", "B.pbo", "B.pbo.Old.bisign"], &["New.bikey"]),
+            ["1 of the PBOs is signed with Old, but the keys folder has no .bikey of that name."]
+        );
         fs::remove_dir_all(root).unwrap();
     }
 }
