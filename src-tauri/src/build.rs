@@ -851,7 +851,8 @@ fn sign_pbos(
     fs::create_dir_all(&keys_dir)
         .map_err(|e| Failure::new(Step::Sign, format!("Couldn't create {}: {e}", keys_dir.display())))?;
     let key_target = keys_dir.join(format!("{key_name}.bikey"));
-    fs::copy(&public_key, &key_target)
+    fs::read(&public_key)
+        .and_then(|key| write_output(&key_target, key))
         .map_err(|e| Failure::new(Step::Sign, format!("Couldn't copy the public key: {e}")))?;
     reporter.log(Level::Info, format!("Copied {key_name}.bikey to {}", keys_dir.display()));
     Ok(())
@@ -1020,6 +1021,24 @@ fn build_steps(
     Ok(())
 }
 
+/// Writes a file the app puts in an `@mod` folder. Copying would carry a source file's read-only attribute with it,
+/// and then nothing could replace the copy later, so the bytes are written instead, over any copy that is read-only
+/// already.
+pub fn write_output(path: &Path, contents: impl AsRef<[u8]>) -> std::io::Result<()> {
+    if let Ok(metadata) = fs::metadata(path)
+        && metadata.permissions().readonly()
+    {
+        let mut permissions = metadata.permissions();
+        #[allow(
+            clippy::permissions_set_readonly_false,
+            reason = "on Windows this only clears the read-only attribute"
+        )]
+        permissions.set_readonly(false);
+        fs::set_permissions(path, permissions)?;
+    }
+    fs::write(path, contents)
+}
+
 /// Another mod built into the same `@mod` folder that brings a mod.cpp of its own, which a mod without one leaves in
 /// place, so building a mod's server half doesn't replace the mod.cpp of its client half.
 fn mod_cpp_owner<'a>(m: &ModConfig, mods: &'a [ModConfig], output: &Path) -> Option<&'a ModConfig> {
@@ -1049,7 +1068,7 @@ fn add_mod_cpp(reporter: &mut Reporter, m: &ModConfig, mods: &[ModConfig], outpu
     let version = cfg_mods.iter().find(|(key, value)| key == "version" && !value.is_empty()).map(|(_, v)| v.as_str());
 
     if !source.is_file() {
-        fs::write(&target, mod_cpp::create(&cfg_mods, &m.name)).map_err(fail)?;
+        write_output(&target, mod_cpp::create(&cfg_mods, &m.name)).map_err(fail)?;
         reporter.log(
             Level::Info,
             if cfg_mods.is_empty() { "Wrote mod.cpp with the mod's name" } else { "Wrote mod.cpp from config.cpp" },
@@ -1057,8 +1076,8 @@ fn add_mod_cpp(reporter: &mut Reporter, m: &ModConfig, mods: &[ModConfig], outpu
         return Ok(());
     }
     let bytes = fs::read(&source).map_err(fail)?;
-    let updated = match (version, String::from_utf8(bytes)) {
-        (Some(version), Ok(text)) => mod_cpp::with_version(&text, version).map(|text| (version, text)),
+    let updated = match (version, std::str::from_utf8(&bytes)) {
+        (Some(version), Ok(text)) => mod_cpp::with_version(text, version).map(|text| (version, text)),
         (Some(_), Err(_)) => {
             reporter.warn("mod.cpp isn't saved as UTF-8, so its version was left as it is.");
             None
@@ -1067,11 +1086,11 @@ fn add_mod_cpp(reporter: &mut Reporter, m: &ModConfig, mods: &[ModConfig], outpu
     };
     match updated {
         Some((version, text)) => {
-            fs::write(&target, text).map_err(fail)?;
+            write_output(&target, text).map_err(fail)?;
             reporter.log(Level::Info, format!("Copied mod.cpp, with version {version} from config.cpp"));
         }
         None => {
-            fs::copy(&source, &target).map_err(fail)?;
+            write_output(&target, bytes).map_err(fail)?;
             reporter.log(Level::Info, "Copied mod.cpp");
         }
     }
@@ -1210,6 +1229,20 @@ mod tests {
         without.copy_mod_cpp = false;
         assert!(mod_cpp_owner(&server, &[without, server.clone()], &output).is_none());
         fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn writes_over_a_read_only_copy() {
+        let path = std::env::temp_dir().join(format!("flare-tools-read-only-{}.cpp", std::process::id()));
+        fs::write(&path, "old").unwrap();
+        let mut permissions = fs::metadata(&path).unwrap().permissions();
+        permissions.set_readonly(true);
+        fs::set_permissions(&path, permissions).unwrap();
+
+        write_output(&path, "new").unwrap();
+        assert_eq!(fs::read_to_string(&path).unwrap(), "new");
+        assert!(!fs::metadata(&path).unwrap().permissions().readonly());
+        fs::remove_file(path).unwrap();
     }
 
     #[test]
