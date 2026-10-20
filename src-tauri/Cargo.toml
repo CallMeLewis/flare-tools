@@ -1,6 +1,6 @@
 [package]
 name = "flare-tools"
-version = "0.5.0"
+version = "0.5.1"
 description = "Flare Tools: builds, signs and publishes DayZ mods"
 authors = ["CallMeLewis"]
 license = "GPL-3.0-or-later"

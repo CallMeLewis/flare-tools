@@ -2,6 +2,29 @@
 
 What changed in each version of Flare Tools, newest first.
 
+## 0.5.1 - 2026-10-21
+
+- New Delete from the Workshop button, the bin next to View on Steam on an item's page, deletes the item with its page and files after asking first.
+- Upload new version now warns when the PBOs are signed with a key that has no matching .bikey in the keys folder, which gets players kicked from servers that check signatures.
+- Publishing a new Workshop item no longer needs a preview image: without one, it gets a default picture, which you can replace later by choosing an image on its page and saving the page.
+- Files a build clears out of the addons folder, such as old PBOs and stray files, now go to the Recycle Bin instead of being deleted, so anything removed by mistake can be put back.
+- A mod's output folder can no longer be a whole drive, a DayZ or DayZ server install, or the mod's own source folder, since building clears out its addons folder; choose a folder of the mod's own, such as @MyMod.
+- Save page and Undo changes have moved from the top of a Workshop item's page to a bar that appears at the bottom once you've changed the page, where Undo changes is now called Discard.
+- Fixed building one half of a mod that shares its output folder, such as the server half, replacing the mod.cpp the other half put there when it hasn't got one of its own.
+- Fixed every build after the first failing when the mod's mod.cpp or public key was read-only, such as files from Perforce or an extracted archive.
+- Fixed Ctrl+B and Build changed starting a build of a mod with every PBO unticked, which then failed and kept the mod in every later Build changed.
+- Fixed Upload new version being allowed while a mod was building into the same folder, which could upload half-written PBOs; now one has to finish before the other starts.
+- Fixed a config.cpp saved by an older tool in the Windows code page, such as one with an accented author name, being ignored, which lost the mod's version and could change its prefix.
+- Fixed quick changes to a mod's options, such as ticking two PBOs one after the other, sometimes undoing each other.
+- Fixed a mod with a renamed PBO overwriting another mod's PBO of the original name in a shared output folder; the build now stops before packing and says which.
+- Fixed a build removing a PBO pboProject had just packed when its folder was nested very deep in the mod; it's now kept and signed with the rest.
+- Fixed Add mod.cpp mishandling some mod.cpp and config.cpp files: a version without its semicolon lost the line after it, an #include line hid the version, quotes written as "" came out doubled, and a macro's name such as MOD_VERSION was used as the version.
+- Fixed Cancel doing nothing while the PBOs were being signed.
+- Fixed publishing a new Workshop item sometimes opening a different item's page; it now waits for Steam to list the new one.
+- Fixed a publish that worked being reported as failed if Flare Tools couldn't save its settings afterwards, so publishing a new item again created a second one.
+- Fixed the tags you've chosen on a Workshop page turning dark grey with dark text, which made them hard to read; they're green again.
+- Fixed the mod dialog and the upload window showing out-of-date PBOs and warnings, either the previous folder's or ones from before the folder changed; they now read the folder again each time they open and when you switch back to Flare Tools.
+
 ## 0.5.0 - 2026-10-19
 
 - New tick boxes beside each PBO under Packing let you choose which of a mod's PBOs to build, for a mod of several. An unticked PBO keeps its last build and signatures in the addons folder, and the choice is saved with the mod.
