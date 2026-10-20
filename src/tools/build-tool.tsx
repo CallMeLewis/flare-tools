@@ -47,8 +47,19 @@ export function BuildTool({ active, settingsOpen, settingsVersion, onOpenSetting
     if (request === statusRequest.current) setStatuses(Object.fromEntries(list.map((s) => [s.id, s])));
   }, []);
 
+  // Changes made on a mod's page show straight away and save one after another, each on top of the one before, so
+  // quick changes, such as ticking two PBOs, don't undo each other.
+  const dataRef = useRef<AppData | null>(null);
+  dataRef.current = data;
+  const changes = useRef(0);
+  const unsaved = useRef(0);
+  const saves = useRef(Promise.resolve());
+
   const reload = useCallback(async () => {
-    setData(await api.getData());
+    // Data read before a change would bring back what the change replaced, so it's dropped: the change's save reloads.
+    const changesBefore = changes.current;
+    const loaded = await api.getData();
+    if (changes.current === changesBefore) setData(loaded);
     await refreshStatuses();
   }, [refreshStatuses]);
 
@@ -135,15 +146,25 @@ export function BuildTool({ active, settingsOpen, settingsVersion, onOpenSetting
     return () => window.removeEventListener("keydown", onKey);
   }, [active, selected, buildMods, settingsOpen, modDialog.open, statuses]);
 
-  async function changeMod(mod: ModConfig, patch: Partial<ModConfig>) {
-    try {
-      const saved = await api.saveMod({ ...mod, ...patch });
-      setData((current) => current && { ...current, mods: current.mods.map((m) => (m.id === saved.id ? saved : m)) });
-      // Unticking every PBO, for one, leaves the mod unable to build, which Build changed and Ctrl+B go by.
-      await refreshStatuses();
-    } catch (error) {
-      toast.error(errorMessage(error));
-    }
+  function changeMod(id: string, patch: Partial<ModConfig>) {
+    const current = dataRef.current;
+    const mod = current?.mods.find((m) => m.id === id);
+    if (!current || !mod) return;
+    const changed = { ...mod, ...patch };
+    dataRef.current = { ...current, mods: current.mods.map((m) => (m.id === id ? changed : m)) };
+    setData(dataRef.current);
+    changes.current++;
+    unsaved.current++;
+    saves.current = saves.current.then(async () => {
+      try {
+        await api.saveMod(changed);
+      } catch (error) {
+        toast.error(errorMessage(error));
+      }
+      // Once every change is saved, show what was saved, or what's left after one failed, and whether the mod can
+      // still be built: unticking every PBO, for one, leaves it unable to, which Build changed and Ctrl+B go by.
+      if (--unsaved.current === 0) void reload();
+    });
   }
 
   async function removeMod(mod: ModConfig) {
@@ -197,7 +218,7 @@ export function BuildTool({ active, settingsOpen, settingsVersion, onOpenSetting
               onBuild={() => void buildMods([selected.id])}
               onCancel={() => void api.cancelBuild()}
               onEdit={() => setModDialog({ open: true, mod: selected })}
-              onChange={(patch) => void changeMod(selected, patch)}
+              onChange={(patch) => changeMod(selected.id, patch)}
             />
           ) : (
             <>
