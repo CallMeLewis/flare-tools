@@ -64,6 +64,7 @@ signed in as DayZ (app 221100), which is what lets it publish to DayZ's Workshop
 - New items start out private. Steam hides items until you've accepted the
   [Workshop legal agreement](https://steamcommunity.com/sharedfiles/workshoplegalagreement); the app tells you if
   that's needed.
+- A new item without a preview image chosen gets a default one, the app's mark, which can be replaced later.
 - Saving the page and uploading a new version are separate. "Upload new version" sends the files and a change note;
   Steam only uploads what changed, so re-uploading costs little.
 - A folder can't be uploaded while a mod is building into it, nor built into while it's uploading, so Steam never

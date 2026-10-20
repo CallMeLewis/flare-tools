@@ -172,6 +172,10 @@ pub struct PublishRequest {
     pub tags: Vec<String>,
     pub visibility: Visibility,
     pub preview_path: Option<String>,
+    /// Sends the app's default preview image when `preview_path` is None, for a new item the modder hasn't chosen
+    /// one for. Steam would otherwise show it with a blank picture.
+    #[serde(default)]
+    pub default_preview: bool,
     pub content_path: Option<String>,
     pub change_note: String,
     /// False sends only the files and change note, leaving the page as it is on Steam, which may have
@@ -340,6 +344,17 @@ fn wait<T: Send + 'static>(start: impl FnOnce(Sender<T>)) -> Result<T, String> {
 
 fn parse_id(id: &str) -> Result<PublishedFileId, String> {
     id.parse::<u64>().map(PublishedFileId).map_err(|_| format!("{id} isn't a Workshop item id."))
+}
+
+/// The preview image a new item gets when the modder hasn't chosen one. The frontend shows the same file.
+const DEFAULT_PREVIEW: &[u8] = include_bytes!("../../src/assets/default-preview.png");
+const _: () = assert!(DEFAULT_PREVIEW.len() as u64 <= MAX_PREVIEW_BYTES, "the default preview is over Steam's limit");
+
+/// Writes the default preview image out for Steam, which only uploads a preview from a file.
+fn default_preview() -> Result<std::path::PathBuf, String> {
+    let path = std::env::temp_dir().join("flare-tools-default-preview.png");
+    std::fs::write(&path, DEFAULT_PREVIEW).map_err(|e| format!("Couldn't prepare the default preview image: {e}"))?;
+    std::fs::canonicalize(&path).map_err(|e| format!("Couldn't prepare the default preview image: {e}"))
 }
 
 /// Checks a value the steamworks crate would otherwise panic on.
@@ -515,6 +530,7 @@ impl Steam {
                 }
                 Some(std::fs::canonicalize(path).map_err(|e| format!("Couldn't read the preview image: {e}"))?)
             }
+            None if request.default_preview => Some(default_preview()?),
             None => None,
         };
 

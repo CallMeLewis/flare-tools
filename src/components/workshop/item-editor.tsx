@@ -9,6 +9,7 @@ import {
   UploadCloudIcon,
 } from "lucide-react";
 
+import defaultPreview from "@/assets/default-preview.png";
 import { DisabledHint } from "@/components/disabled-hint";
 import {
   AlertDialog,
@@ -250,7 +251,6 @@ export function ItemEditor({
   if (textBytes(page.title) > LIMITS.title) problems.push("The title is too long.");
   if (textBytes(page.description) > LIMITS.description) problems.push("The description is too long.");
   if (preview && preview.size > LIMITS.previewBytes) problems.push("The preview image is over 1 MB.");
-  if (isNew && !page.previewPath) problems.push("Choose a preview image.");
 
   const problemList = (
     <ul className="flex flex-col gap-0.5">
@@ -291,6 +291,7 @@ export function ItemEditor({
       tags: page.tags,
       visibility: page.visibility,
       previewPath: page.previewPath || null,
+      defaultPreview: isNew,
       sendPage: true,
     };
   }
@@ -305,6 +306,7 @@ export function ItemEditor({
       tags: saved.tags,
       visibility: saved.visibility,
       previewPath: null,
+      defaultPreview: false,
       sendPage: false,
     };
   }
@@ -335,11 +337,13 @@ export function ItemEditor({
   }
 
   const title = page.title.trim() || (isNew ? "New item" : "Untitled");
+  // A new item without a picture chosen is published with the default one.
+  const previewSrc = preview?.url ?? item?.previewUrl ?? (isNew ? defaultPreview : null);
 
   return (
     <>
       <ToolPageHeader>
-        <Thumbnail src={preview?.url ?? item?.previewUrl ?? null} className="size-9" />
+        <Thumbnail src={previewSrc} className="size-9" />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2.5">
             <h1 className="truncate text-base font-semibold" title={title}>
@@ -467,7 +471,7 @@ export function ItemEditor({
                       aria-label="Choose a preview image"
                       className="group relative size-32 overflow-hidden rounded-lg border outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
                     >
-                      <Thumbnail src={preview?.url ?? item?.previewUrl ?? null} className="size-full rounded-none" />
+                      <Thumbnail src={previewSrc} className="size-full rounded-none" />
                       <span className="absolute inset-0 flex items-center justify-center bg-overlay opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
                         <ImageUpIcon className="size-5 text-overlay-foreground" aria-hidden />
                       </span>
@@ -478,7 +482,11 @@ export function ItemEditor({
                         preview && preview.size > LIMITS.previewBytes ? "text-destructive" : "text-muted-foreground",
                       )}
                     >
-                      {preview ? `New image, ${fileSize(preview.size)}` : "Square, under 1 MB"}
+                      {preview
+                        ? `New image, ${fileSize(preview.size)}`
+                        : isNew
+                          ? "Default image. Choose a square one under 1 MB."
+                          : "Square, under 1 MB"}
                     </p>
                   </div>
 

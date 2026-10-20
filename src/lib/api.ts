@@ -206,6 +206,8 @@ export interface PublishRequest {
   visibility: Visibility;
   /** Leave null to keep the current preview image. */
   previewPath: string | null;
+  /** Sends the default preview image when `previewPath` is null, for a new item without one chosen. */
+  defaultPreview: boolean;
   /** Leave null to keep the current files. */
   contentPath: string | null;
   changeNote: string;
