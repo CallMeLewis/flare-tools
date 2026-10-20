@@ -605,6 +605,31 @@ fn has_word(text: &str, word: &str) -> bool {
     })
 }
 
+/// Moves a file to the Recycle Bin, so one a build shouldn't have removed can be put back. On a drive without a
+/// Recycle Bin, such as a network share, Windows deletes it instead.
+fn recycle(path: &Path) -> Result<(), String> {
+    use std::os::windows::ffi::OsStrExt;
+    use windows_sys::Win32::UI::Shell::{
+        FO_DELETE, FOF_ALLOWUNDO, FOF_NOCONFIRMATION, FOF_NOERRORUI, FOF_SILENT, SHFILEOPSTRUCTW, SHFileOperationW,
+    };
+
+    // Undo needs a full path. The list of paths ends with an empty one, hence the two nulls.
+    let path = std::path::absolute(path).map_err(|e| e.to_string())?;
+    let from: Vec<u16> = path.as_os_str().encode_wide().chain([0, 0]).collect();
+    let mut operation = SHFILEOPSTRUCTW {
+        wFunc: FO_DELETE,
+        pFrom: from.as_ptr(),
+        fFlags: (FOF_ALLOWUNDO | FOF_NOCONFIRMATION | FOF_NOERRORUI | FOF_SILENT) as u16,
+        ..Default::default()
+    };
+    // SAFETY: `from` is a double-null-terminated list that outlives the call, and no window is passed.
+    let result = unsafe { SHFileOperationW(&mut operation) };
+    if result != 0 || operation.fAnyOperationsAborted != 0 {
+        return Err(format!("Windows couldn't move it to the Recycle Bin (error {result:#x})."));
+    }
+    Ok(())
+}
+
 fn kill_tree(pid: u32) {
     let _ = Command::new("taskkill")
         .args(["/PID", &pid.to_string(), "/T", "/F"])
@@ -851,6 +876,9 @@ fn build_steps(
         return Err(Failure::new(Step::Prepare, "The output folder isn't set."));
     }
     let output = PathBuf::from(m.output_path.trim());
+    if let Some(problem) = inspect::output_problem(Path::new(&m.source_path), &output) {
+        return Err(Failure::new(Step::Prepare, problem));
+    }
     let (chosen, left_out): (Vec<&PboPlan>, Vec<&PboPlan>) = plan.pbos.iter().partition(|pbo| !skipped(m, &plan, pbo));
     if chosen.is_empty() {
         return Err(Failure::new(Step::Prepare, "Every PBO is unticked under Packing, so there's nothing to build."));
@@ -956,7 +984,7 @@ fn build_steps(
 
     // Everything else in addons goes, so nothing stale is uploaded with the mod: DayZ loads only PBOs and their
     // signatures from it, and a rebuilt PBO invalidates every signature made for the old one. Other mods built into
-    // the same folder keep theirs.
+    // the same folder keep theirs. Files go to the Recycle Bin, in case one was something the modder wanted.
     let built: Vec<String> = pbos.iter().map(|p| format!("{}.pbo", p.name)).collect();
     let mut shared = shared_pbos(settings, m, mods, &output);
     // An unticked PBO keeps its last build and that build's signatures.
@@ -965,9 +993,10 @@ fn build_steps(
         let name = path.file_name().unwrap_or_default().to_string_lossy().into_owned();
         let signature = name.to_ascii_lowercase().ends_with(".bisign")
             && built.iter().any(|pbo| name.to_ascii_lowercase().starts_with(&format!("{}.", pbo.to_ascii_lowercase())));
-        match fs::remove_file(&path) {
-            Ok(()) if signature => reporter.log(Level::Info, format!("Removed old signature {name}")),
-            Ok(()) => reporter.log(Level::Info, format!("Removed addons\\{name}, which this build didn't produce")),
+        match recycle(&path) {
+            Ok(()) if signature => reporter.log(Level::Info, format!("Moved old signature {name} to the Recycle Bin")),
+            Ok(()) => reporter
+                .log(Level::Info, format!("Moved addons\\{name}, which this build didn't produce, to the Recycle Bin")),
             Err(e) => reporter.warn(format!("Couldn't remove addons\\{name}: {e}")),
         }
     }

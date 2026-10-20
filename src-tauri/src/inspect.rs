@@ -411,6 +411,29 @@ pub fn same_folder(a: &Path, b: &Path) -> bool {
     }
 }
 
+/// The game's and server's programs. Their folder's `addons` holds DayZ's own PBOs.
+const DAYZ_PROGRAMS: [&str; 3] = ["DayZ_x64.exe", "DayZServer_x64.exe", "DayZDiag_x64.exe"];
+
+/// Why a mod can't build into `output`. A build clears out of `output\addons` whatever it didn't produce, so the
+/// output has to be a folder of the mod's own rather than a drive, a DayZ install or the mod's source.
+pub fn output_problem(source: &Path, output: &Path) -> Option<String> {
+    let example = source.file_name().map(|n| format!("@{}", n.to_string_lossy())).unwrap_or_else(|| "@MyMod".into());
+    if output.parent().is_none() {
+        Some(format!(
+            "The output folder is the whole of {}. Choose a folder of the mod's own, such as {example}.",
+            output.display()
+        ))
+    } else if DAYZ_PROGRAMS.iter().any(|program| output.join(program).is_file()) {
+        Some(format!(
+            "The output folder is a DayZ install, whose addons folder holds the game's own PBOs. Choose a folder of the mod's own, such as {example}."
+        ))
+    } else if same_folder(source, output) {
+        Some(format!("The output folder is the mod's source folder. Choose a separate one, such as {example}."))
+    } else {
+        None
+    }
+}
+
 pub fn inspect(p_drive: &str, source_path: &str, prefix_override: Option<&str>, pbo_name: Option<&str>) -> Inspection {
     let source = Path::new(source_path.trim());
     let source_exists = source.is_dir();
@@ -523,6 +546,24 @@ pub fn inspect(p_drive: &str, source_path: &str, prefix_override: Option<&str>, 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn refuses_output_folders_whose_addons_arent_the_mods() {
+        let root = std::env::temp_dir().join(format!("flare-tools-output-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        let source = root.join("MyMod");
+        let game = root.join("DayZ");
+        fs::create_dir_all(&source).unwrap();
+        fs::create_dir_all(&game).unwrap();
+        fs::write(game.join("DayZ_x64.exe"), "").unwrap();
+
+        assert_eq!(output_problem(&source, &root.join("@MyMod")), None);
+        assert_eq!(output_problem(&source, &game.join("@MyMod")), None, "a mod can build inside the game's folder");
+        assert!(output_problem(&source, &game).unwrap().contains("DayZ install"));
+        assert!(output_problem(&source, &source).unwrap().contains("source folder"));
+        assert!(output_problem(&source, Path::new(r"D:\")).unwrap().contains("such as @MyMod"));
+        fs::remove_dir_all(root).unwrap();
+    }
 
     #[test]
     fn normalises_prefixes() {

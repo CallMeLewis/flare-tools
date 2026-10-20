@@ -105,6 +105,9 @@ fn save_mod(store: State<Store>, config: ModConfig) -> Result<ModConfig, String>
     if let Some(problem) = config.pbo_name.as_deref().and_then(inspect::pbo_name_problem) {
         return Err(problem);
     }
+    if let Some(problem) = inspect::output_problem(Path::new(&config.source_path), Path::new(&config.output_path)) {
+        return Err(problem);
+    }
     if config.name.is_empty() {
         config.name = Path::new(&config.source_path)
             .file_name()
@@ -184,7 +187,10 @@ async fn mod_statuses(store: State<'_, Store>) -> Result<Vec<ModStatus>, String>
                 let plan =
                     inspect::inspect(&settings.p_drive, &m.source_path, m.prefix.as_deref(), m.pbo_name.as_deref());
                 ModStatus {
-                    problem: plan.problem.clone(),
+                    problem: plan.problem.clone().or_else(|| {
+                        let output = m.output_path.trim();
+                        if output.is_empty() { None } else { inspect::output_problem(dir, Path::new(output)) }
+                    }),
                     version: plan
                         .cfg_mods
                         .as_ref()
