@@ -543,7 +543,7 @@ export function ItemEditor({
                             pressed={page.tags.includes(tag)}
                             onPressedChange={(on) => toggleTag(tag, on)}
                             disabled={locked}
-                            className="aria-pressed:border-transparent aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/85"
+                            className="data-[state=on]:border-transparent data-[state=on]:bg-primary data-[state=on]:text-primary-foreground data-[state=on]:hover:bg-primary/85 data-[state=on]:hover:text-primary-foreground"
                           >
                             {page.tags.includes(tag) && <CheckIcon data-icon="inline-start" />}
                             {tag}
