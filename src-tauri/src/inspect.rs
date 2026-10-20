@@ -292,8 +292,17 @@ fn meta_from(fields: &[(String, String)]) -> Option<ModMeta> {
     (!meta.is_empty()).then_some(meta)
 }
 
+/// Reads a config or prefix file as text. Older tools save them in the Windows code page rather than UTF-8, so a byte
+/// that isn't UTF-8, such as an accented letter in an author's name, is replaced rather than losing the whole file:
+/// everything read from it is ASCII. A leading byte order mark is dropped.
+fn read_text(path: &Path) -> Option<String> {
+    let bytes = fs::read(path).ok()?;
+    let text = String::from_utf8_lossy(&bytes);
+    Some(text.strip_prefix('\u{feff}').unwrap_or(&text).to_string())
+}
+
 fn read_mod_cpp(source: &Path) -> Option<ModMeta> {
-    let text = fs::read_to_string(source.join("mod.cpp")).ok()?;
+    let text = read_text(&source.join("mod.cpp"))?;
     meta_from(&assignments(&strip_comments(&text)))
 }
 
@@ -318,7 +327,7 @@ pub fn cfg_mods_fields(source: &Path) -> Vec<(String, String)> {
     find_configs(source, 0, &mut configs);
     configs
         .iter()
-        .filter_map(|path| fs::read_to_string(path).ok())
+        .filter_map(|path| read_text(path))
         .filter_map(|text| cfg_mods_class(&strip_comments(&text)))
         .find(|fields| meta_from(fields).is_some())
         .unwrap_or_default()
@@ -331,7 +340,7 @@ fn read_cfg_mods(source: &Path) -> Option<ModMeta> {
 fn read_prefix_file(dir: &Path) -> Option<(String, String)> {
     for name in PREFIX_FILES {
         let path = dir.join(name);
-        let Ok(text) = fs::read_to_string(&path) else { continue };
+        let Some(text) = read_text(&path) else { continue };
         // Either a bare prefix or `prefix=...` among other `key=value` lines.
         let value = text
             .lines()
@@ -381,7 +390,7 @@ fn prefix_from_configs(source: &Path) -> Option<(String, String)> {
 
     let mut configs = Vec::new();
     find_configs(source, 0, &mut configs);
-    let texts: Vec<String> = configs.iter().filter_map(|p| fs::read_to_string(p).ok()).collect();
+    let texts: Vec<String> = configs.iter().filter_map(|p| read_text(p)).collect();
 
     let mut best: Option<(usize, String, String)> = None;
     for candidate in candidates {
@@ -546,6 +555,22 @@ pub fn inspect(p_drive: &str, source_path: &str, prefix_override: Option<&str>, 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn reads_configs_that_arent_utf8() {
+        let source = std::env::temp_dir().join(format!("flare-tools-code-page-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&source);
+        fs::create_dir_all(&source).unwrap();
+        // "Jérôme" in the Windows code page, as older tools save it.
+        let config = b"class CfgMods { class MyMod { author = \"J\xe9r\xf4me\"; version = \"1.2\"; }; };";
+        fs::write(source.join("config.cpp"), config).unwrap();
+        fs::write(source.join("$PBOPREFIX$"), "\u{feff}MyPrefix").unwrap();
+
+        let plan = inspect("", &source.to_string_lossy(), None, None);
+        assert_eq!(plan.cfg_mods.and_then(|meta| meta.version).as_deref(), Some("1.2"));
+        assert_eq!(plan.prefix, "MyPrefix", "a byte order mark isn't part of the prefix");
+        fs::remove_dir_all(source).unwrap();
+    }
 
     #[test]
     fn refuses_output_folders_whose_addons_arent_the_mods() {
