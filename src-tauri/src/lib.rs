@@ -187,7 +187,7 @@ async fn mod_statuses(store: State<'_, Store>) -> Result<Vec<ModStatus>, String>
                 let plan =
                     inspect::inspect(&settings.p_drive, &m.source_path, m.prefix.as_deref(), m.pbo_name.as_deref());
                 ModStatus {
-                    problem: plan.problem.clone().or_else(|| {
+                    problem: plan.problem.clone().or_else(|| build::ticked_problem(m, &plan)).or_else(|| {
                         let output = m.output_path.trim();
                         if output.is_empty() { None } else { inspect::output_problem(dir, Path::new(output)) }
                     }),

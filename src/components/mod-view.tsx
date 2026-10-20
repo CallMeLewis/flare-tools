@@ -108,7 +108,8 @@ export function ModView({
     !!inspection &&
     inspection.pbos.length > 0 &&
     inspection.pbos.every((pbo) => isSkipped(inspection, mod.skippedPbos, pbo));
-  const blocked = !inspection || Boolean(inspection.problem) || nothingTicked;
+  // The status also covers what the inspection doesn't check, such as an output folder that isn't the mod's own.
+  const blocked = !inspection || Boolean(inspection.problem) || nothingTicked || Boolean(status?.problem);
   const keyName = fileName(mod.privateKeyPath || settings.defaultPrivateKeyPath).replace(/\.biprivatekey$/i, "");
   // An earlier build picked from the list, shown in place of the current one.
   const [viewingId, setViewingId] = useState<string | null>(null);
@@ -139,9 +140,9 @@ export function ModView({
           ? "Nothing to pack. The source folder has no PBOs in it."
           : nothingTicked
             ? "Tick at least one PBO under Packing to build."
-            : blocked
+            : inspection.problem
               ? "Fix the problem under Packing first."
-            : null;
+              : (status?.problem ?? null);
 
   return (
     <>
@@ -426,7 +427,9 @@ export function ModView({
                   <EmptyTitle>{status?.problem ? "Can't build yet" : "Ready to build"}</EmptyTitle>
                   <EmptyDescription>
                     {status?.problem
-                      ? "Sort out the problem under Packing, then build."
+                      ? inspection?.problem || nothingTicked
+                        ? "Sort out the problem under Packing, then build."
+                        : status.problem
                       : mod.lastBuild
                       ? `Last built ${dateTime(mod.lastBuild.finishedAt)}${mod.lastBuild.ok ? "" : " (failed)"}. pboProject's output shows here while it runs.`
                       : "pboProject's output shows here while it runs."}

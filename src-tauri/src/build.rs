@@ -749,6 +749,12 @@ fn skipped(m: &ModConfig, plan: &Inspection, pbo: &PboPlan) -> bool {
     plan.pbos.len() > 1 && m.skipped_pbos.iter().any(|dir| dir.eq_ignore_ascii_case(&pbo.rel_dir))
 }
 
+/// Why the mod's ticked PBOs can't be built: because there aren't any.
+pub fn ticked_problem(m: &ModConfig, plan: &Inspection) -> Option<String> {
+    (!plan.pbos.is_empty() && plan.pbos.iter().all(|pbo| skipped(m, plan, pbo)))
+        .then(|| "Every PBO is unticked under Packing, so there's nothing to build.".into())
+}
+
 /// The PBOs that the other mods built into the same `@mod` folder produce, such as a mod's client and server
 /// halves, so building one doesn't remove the other's. Counts what each would pack now and what it last built.
 fn shared_pbos(settings: &Settings, m: &ModConfig, mods: &[ModConfig], output: &Path) -> Vec<String> {
@@ -880,10 +886,10 @@ fn build_steps(
     if let Some(problem) = inspect::output_problem(Path::new(&m.source_path), &output) {
         return Err(Failure::new(Step::Prepare, problem));
     }
-    let (chosen, left_out): (Vec<&PboPlan>, Vec<&PboPlan>) = plan.pbos.iter().partition(|pbo| !skipped(m, &plan, pbo));
-    if chosen.is_empty() {
-        return Err(Failure::new(Step::Prepare, "Every PBO is unticked under Packing, so there's nothing to build."));
+    if let Some(problem) = ticked_problem(m, &plan) {
+        return Err(Failure::new(Step::Prepare, problem));
     }
+    let (chosen, left_out): (Vec<&PboPlan>, Vec<&PboPlan>) = plan.pbos.iter().partition(|pbo| !skipped(m, &plan, pbo));
     reporter.log(Level::Info, format!("Prefix: {}", plan.prefix));
     for pbo in &chosen {
         reporter.log(Level::Info, format!("Will pack {}.pbo ({})", pbo.name, pbo.prefix));
@@ -1229,6 +1235,32 @@ mod tests {
         without.copy_mod_cpp = false;
         assert!(mod_cpp_owner(&server, &[without, server.clone()], &output).is_none());
         fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn a_mod_with_every_pbo_unticked_cant_build() {
+        let source = std::env::temp_dir().join(format!("flare-tools-unticked-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&source);
+        for dir in ["gear", "vehicles"] {
+            fs::create_dir_all(source.join(dir)).unwrap();
+            fs::write(source.join(dir).join("config.cpp"), "").unwrap();
+        }
+        let plan = inspect::inspect("", &source.to_string_lossy(), None, None);
+        let unticking = |skipped: &[&str]| -> ModConfig {
+            serde_json::from_value(serde_json::json!({
+                "id": "mod",
+                "name": "Mod",
+                "sourcePath": source,
+                "outputPath": "",
+                "skippedPbos": skipped,
+            }))
+            .unwrap()
+        };
+
+        assert!(ticked_problem(&unticking(&[]), &plan).is_none());
+        assert!(ticked_problem(&unticking(&["gear"]), &plan).is_none());
+        assert!(ticked_problem(&unticking(&["GEAR", "vehicles"]), &plan).is_some());
+        fs::remove_dir_all(source).unwrap();
     }
 
     #[test]

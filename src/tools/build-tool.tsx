@@ -139,6 +139,8 @@ export function BuildTool({ active, settingsOpen, settingsVersion, onOpenSetting
     try {
       const saved = await api.saveMod({ ...mod, ...patch });
       setData((current) => current && { ...current, mods: current.mods.map((m) => (m.id === saved.id ? saved : m)) });
+      // Unticking every PBO, for one, leaves the mod unable to build, which Build changed and Ctrl+B go by.
+      await refreshStatuses();
     } catch (error) {
       toast.error(errorMessage(error));
     }
