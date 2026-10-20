@@ -65,6 +65,8 @@ signed in as DayZ (app 221100), which is what lets it publish to DayZ's Workshop
   that's needed.
 - Saving the page and uploading a new version are separate. "Upload new version" sends the files and a change note;
   Steam only uploads what changed, so re-uploading costs little.
+- A folder can't be uploaded while a mod is building into it, nor built into while it's uploading, so Steam never
+  gets PBOs that are half written.
 - Each upload first writes a `meta.cpp` into the folder with the item's ID and title, as DayZ Publisher does. Servers
   report a mod's Workshop ID from it, so without one launchers see the mod as ID 0 and can't download it.
 

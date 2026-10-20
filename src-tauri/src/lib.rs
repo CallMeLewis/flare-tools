@@ -2,6 +2,7 @@ mod build;
 mod content;
 mod detect;
 mod history;
+mod in_use;
 mod inspect;
 mod meta_cpp;
 mod mod_cpp;
@@ -18,6 +19,7 @@ use tauri::{AppHandle, Emitter, Manager, State};
 
 use build::{BuildControl, BuildOutcome};
 use history::{BuildRecord, LogLine};
+use in_use::{InUse, Use};
 use inspect::Inspection;
 use steam::{PublishError, PublishOutcome, PublishRequest, STEAM, SteamPresence, SteamStatus, WorkshopItem};
 use store::{AppData, LastBuild, ModConfig, Settings, Store, WorkshopLink};
@@ -230,6 +232,8 @@ async fn build_mod(app: AppHandle, id: String) -> Result<BuildOutcome, String> {
         let store = handle.state::<Store>();
         let data = store.snapshot();
         let config = data.mods.iter().find(|m| m.id == id).cloned().ok_or("That mod no longer exists.")?;
+        let in_use = handle.state::<InUse>();
+        let _claim = in_use.claim(Path::new(config.output_path.trim()), Use::Build)?;
         let started_at = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0);
         let (outcome, capture) = build::build(&handle, &control, &data.settings, &config, &data.mods);
         // A mod removed while it built has had its history deleted, which saving now would bring back.
@@ -373,6 +377,11 @@ async fn inspect_content(path: String) -> Result<content::ContentSummary, String
 async fn publish_item(app: AppHandle, request: PublishRequest) -> Result<PublishOutcome, PublishError> {
     let handle = app.clone();
     tauri::async_runtime::spawn_blocking(move || {
+        let in_use = handle.state::<InUse>();
+        let _claim = match request.content_path.as_deref().map(str::trim) {
+            Some(path) => Some(in_use.claim(Path::new(path), Use::Upload)?),
+            None => None,
+        };
         let outcome = STEAM.publish(&request, |progress| {
             let _ = handle.emit("publish-progress", progress);
         })?;
@@ -418,6 +427,7 @@ pub fn run() {
             let links = app.path().app_config_dir()?.join("build-links");
             build::remove_leftover_links(&links);
             app.manage(BuildControl::new(links));
+            app.manage(InUse::default());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
