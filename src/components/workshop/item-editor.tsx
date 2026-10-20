@@ -4,7 +4,6 @@ import {
   CheckIcon,
   ExternalLinkIcon,
   ImageUpIcon,
-  RotateCcwIcon,
   SaveIcon,
   Trash2Icon,
   UploadCloudIcon,
@@ -347,6 +346,7 @@ export function ItemEditor({
 
   const title = page.title.trim() || (isNew ? "New item" : "Untitled");
   const subscribers = item?.stats.subscriptions ?? 0;
+  const showSaveBar = Boolean(item && (pageChanged || saving));
   // A new item without a picture chosen is published with the default one.
   const previewSrc = preview?.url ?? item?.previewUrl ?? (isNew ? defaultPreview : null);
 
@@ -439,55 +439,13 @@ export function ItemEditor({
               Discard
             </Button>
           )}
-          {item && pageChanged && !locked && (
-            <AlertDialog open={confirmUndo} onOpenChange={setConfirmUndo}>
-              <AlertDialogTrigger asChild>
-                <Button variant="outline">
-                  <RotateCcwIcon data-icon="inline-start" />
-                  Undo changes
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Undo your changes to {title}?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    The page goes back to how it is on Steam, and the edits you haven't saved are lost.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Keep editing</AlertDialogCancel>
-                  <AlertDialogAction
-                    variant="destructive"
-                    onClick={() => {
-                      setConfirmUndo(false);
-                      setPage(pageFor(item));
-                    }}
-                  >
-                    Undo changes
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          )}
           {item ? (
-            <>
-              <DisabledHint reason={saveHint}>
-                <Button
-                  variant="outline"
-                  onClick={() => void savePage()}
-                  disabled={locked || blocked || !pageChanged || problems.length > 0}
-                >
-                  {saving ? <Spinner data-icon="inline-start" /> : <SaveIcon data-icon="inline-start" />}
-                  {saving ? "Saving…" : "Save page"}
-                </Button>
-              </DisabledHint>
-              <DisabledHint reason={busyHint}>
-                <Button onClick={openUpload} disabled={locked || blocked} className="min-w-28">
-                  <UploadCloudIcon data-icon="inline-start" />
-                  Upload new version…
-                </Button>
-              </DisabledHint>
-            </>
+            <DisabledHint reason={busyHint}>
+              <Button onClick={openUpload} disabled={locked || blocked} className="min-w-28">
+                <UploadCloudIcon data-icon="inline-start" />
+                Upload new version…
+              </Button>
+            </DisabledHint>
           ) : (
             <DisabledHint reason={publishHint}>
               <Button
@@ -620,6 +578,58 @@ export function ItemEditor({
                 />
               </CardContent>
             </Card>
+
+            {/* Saving and discarding only matter once the page has changed, so they appear then, at the foot of
+                the page's column. It sticks to the bottom while the page scrolls, and comes after the page rather
+                than over it, so scrolling to the end always uncovers the last field. The wrapper lets clicks
+                through to the page around the bar. */}
+            {item && showSaveBar && (
+              <div className="pointer-events-none sticky bottom-4 z-10 mt-auto flex justify-center pt-4">
+                <div className="pointer-events-auto flex items-center gap-1 rounded-xl border bg-popover py-1 pr-1 pl-3 text-popover-foreground shadow-lg motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-2 motion-safe:duration-200 motion-safe:ease-out">
+                  <p role="status" className="flex items-center gap-2 pr-1 text-sm">
+                    <span className="size-1.5 shrink-0 rounded-full bg-warning" aria-hidden />
+                    Unsaved changes
+                  </p>
+                  <AlertDialog open={confirmUndo} onOpenChange={setConfirmUndo}>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="ghost" size="sm" disabled={locked}>
+                        Discard
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Discard your changes to {title}?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          The page goes back to how it is on Steam, and the edits you haven't saved are lost.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Keep editing</AlertDialogCancel>
+                        <AlertDialogAction
+                          variant="destructive"
+                          onClick={() => {
+                            setConfirmUndo(false);
+                            setPage(pageFor(item));
+                          }}
+                        >
+                          Discard
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                  <DisabledHint reason={saveHint}>
+                    <Button
+                      size="sm"
+                      onClick={() => void savePage()}
+                      disabled={locked || blocked || !pageChanged || problems.length > 0}
+                    >
+                      {saving ? <Spinner data-icon="inline-start" /> : <SaveIcon data-icon="inline-start" />}
+                      {saving ? "Saving…" : "Save page"}
+                    </Button>
+                  </DisabledHint>
+                </div>
+              </div>
+            )}
           </div>
 
           {item && (
