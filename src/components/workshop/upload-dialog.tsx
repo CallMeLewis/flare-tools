@@ -96,6 +96,11 @@ export function UploadDialog({
     [mods, contentPath],
   );
 
+  const sortedMods = useMemo(
+    () => [...mods].sort((a, b) => a.name.localeCompare(b.name, "en-GB", { sensitivity: "base", numeric: true })),
+    [mods],
+  );
+
   const problems: string[] = [];
   if (!contentPath.trim()) problems.push("Choose the folder to upload.");
   else if (content && !content.exists) problems.push("The folder doesn't exist.");
@@ -189,7 +194,7 @@ export function UploadDialog({
                   <DropdownMenuContent align="end" className="w-56">
                     <DropdownMenuGroup>
                       <DropdownMenuLabel>Upload a mod's output</DropdownMenuLabel>
-                      {mods.map((mod) => (
+                      {sortedMods.map((mod) => (
                         <DropdownMenuItem key={mod.id} onClick={() => setContentPath(mod.outputPath)}>
                           <span className="truncate">{mod.name}</span>
                         </DropdownMenuItem>
