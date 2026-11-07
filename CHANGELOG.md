@@ -2,6 +2,12 @@
 
 What changed in each version of Flare Tools, newest first.
 
+## 0.6.0 - 2026-11-07
+
+- New: Upload new version fills in the change note from your release notes, when the mod's source folder has a .release-notes folder with a file named after the version being uploaded, such as .release-notes\1.0.5.txt.
+- Upload new version now shows the version of the mod in the folder being uploaded, from its mod.cpp, so you can check it's the build you meant before uploading.
+- The From Build menu in Upload new version now lists your mods in alphabetical order.
+
 ## 0.5.1 - 2026-10-21
 
 - New Delete from the Workshop button, the bin next to View on Steam on an item's page, deletes the item with its page and files after asking first.
