@@ -316,7 +316,7 @@ fn read_text(path: &Path) -> Option<String> {
     Some(text.strip_prefix('\u{feff}').unwrap_or(&text).to_string())
 }
 
-fn read_mod_cpp(source: &Path) -> Option<ModMeta> {
+pub fn read_mod_cpp(source: &Path) -> Option<ModMeta> {
     let text = read_text(&source.join("mod.cpp"))?;
     meta_from(&assignments(&strip_comments(&text)))
 }

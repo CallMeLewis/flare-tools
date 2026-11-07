@@ -128,6 +128,11 @@ export function UploadDialog({
             </p>
             {content?.exists && (
               <p className="text-xs text-muted-foreground tabular-nums">
+                {content.version && (
+                  <>
+                    Version <span className="font-mono">{content.version}</span> ·{" "}
+                  </>
+                )}
                 {content.fileCount.toLocaleString("en-GB")} {content.fileCount === 1 ? "file" : "files"} ·{" "}
                 {fileSize(content.totalSize)}
               </p>
@@ -217,6 +222,12 @@ export function UploadDialog({
                 {content.fileCount.toLocaleString("en-GB")} {content.fileCount === 1 ? "file" : "files"} ·{" "}
                 {fileSize(content.totalSize)}
               </p>
+              {content.version && (
+                <p className="text-muted-foreground">
+                  <span className="text-foreground">Version</span>{" "}
+                  <span className="font-mono">{content.version}</span>
+                </p>
+              )}
               {content.pbos.length > 0 && (
                 <p className="text-muted-foreground">
                   <span className="text-foreground">
@@ -230,7 +241,7 @@ export function UploadDialog({
                   <span className="text-foreground">Keys</span> {content.keys.join(", ")}
                 </p>
               )}
-              {content.hasModCpp && <p className="text-muted-foreground">mod.cpp</p>}
+              {content.hasModCpp && !content.version && <p className="text-muted-foreground">mod.cpp, without a version</p>}
               {content.warnings.map((warning) => (
                 <p key={warning} className="flex gap-1.5 text-warning">
                   <CircleAlertIcon className="mt-px size-3.5 shrink-0" aria-hidden />

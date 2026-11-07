@@ -16,6 +16,8 @@ pub struct ContentSummary {
     /// `.bikey` names in `keys`, without the extension.
     pub keys: Vec<String>,
     pub has_mod_cpp: bool,
+    /// The version in the folder's `mod.cpp`, which a build sets from the mod's `CfgMods` class.
+    pub version: Option<String>,
     pub file_count: usize,
     pub total_size: u64,
     pub warnings: Vec<String>,
@@ -124,6 +126,7 @@ pub fn inspect(path: &str) -> ContentSummary {
     summary.keys = keys.as_deref().map(|d| stems(d, "bikey")).unwrap_or_default();
     let key_names = keys.as_deref().map(key_names).unwrap_or_default();
     summary.has_mod_cpp = root.join("mod.cpp").is_file();
+    summary.version = crate::inspect::read_mod_cpp(root).and_then(|meta| meta.version);
 
     match &addons {
         None if !stems(root, "pbo").is_empty() => {
@@ -195,6 +198,19 @@ mod tests {
 
         let summary = inspect(&root.to_string_lossy());
         assert!(summary.warnings.contains(&"DayZ won't load mod.cpp, old from the addons folder.".to_string()));
+
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn reads_the_version_from_mod_cpp() {
+        let root = std::env::temp_dir().join(format!("flare-tools-content-version-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        assert_eq!(inspect(&root.to_string_lossy()).version, None);
+
+        fs::write(root.join("mod.cpp"), "name = \"My Mod\";\nversion = \"1.4.2\";\n").unwrap();
+        assert_eq!(inspect(&root.to_string_lossy()).version.as_deref(), Some("1.4.2"));
 
         fs::remove_dir_all(root).unwrap();
     }

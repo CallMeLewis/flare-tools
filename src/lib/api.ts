@@ -172,6 +172,8 @@ export interface ContentSummary {
   pbos: string[];
   keys: string[];
   hasModCpp: boolean;
+  /** The version in the folder's mod.cpp, which a build sets from the mod's CfgMods class. */
+  version: string | null;
   fileCount: number;
   totalSize: number;
   warnings: string[];
