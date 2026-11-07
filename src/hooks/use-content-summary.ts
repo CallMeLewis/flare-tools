@@ -5,8 +5,9 @@ import { api, type ContentSummary } from "@/lib/api";
 /**
  * Summarises a folder to upload, waiting briefly so typing a path doesn't scan on every keystroke. It's read again each
  * time the upload window opens and when the app comes back into focus, to pick up changes made outside the app.
+ * `source` is the source folder of the mod built into it, where the release notes for its version are looked for.
  */
-export function useContentSummary(path: string, open: boolean) {
+export function useContentSummary(path: string, source: string | null, open: boolean) {
   // Kept with the folder it's for, so another folder's summary never shows while this one's is read.
   const [summary, setSummary] = useState<{ path: string; summary: ContentSummary | null } | null>(null);
   const [focused, setFocused] = useState(0);
@@ -30,14 +31,14 @@ export function useContentSummary(path: string, open: boolean) {
     if (!folder || !open) return;
     let cancelled = false;
     const timer = window.setTimeout(async () => {
-      const result = await api.inspectContent(folder).catch(() => null);
+      const result = await api.inspectContent(folder, source).catch(() => null);
       if (!cancelled) setSummary({ path: folder, summary: result });
     }, 250);
     return () => {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [folder, open, focused]);
+  }, [folder, source, open, focused]);
 
   return folder && summary?.path === folder ? summary.summary : null;
 }

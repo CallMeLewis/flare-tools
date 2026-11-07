@@ -368,9 +368,19 @@ async fn workshop_items(store: State<'_, Store>) -> Result<Vec<WorkshopItem>, St
     Ok(items)
 }
 
+/// Summarises a folder to upload. `source` is the source folder of the mod built into it, if any, to find the release
+/// notes for the version in it.
 #[tauri::command]
-async fn inspect_content(path: String) -> Result<content::ContentSummary, String> {
-    tauri::async_runtime::spawn_blocking(move || content::inspect(path.trim())).await.map_err(|e| e.to_string())
+async fn inspect_content(path: String, source: Option<String>) -> Result<content::ContentSummary, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut summary = content::inspect(path.trim());
+        summary.release_notes = source
+            .zip(summary.version.clone())
+            .and_then(|(source, version)| content::release_notes(Path::new(source.trim()), &version));
+        summary
+    })
+    .await
+    .map_err(|e| e.to_string())
 }
 
 #[tauri::command]

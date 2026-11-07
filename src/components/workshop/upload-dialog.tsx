@@ -79,7 +79,8 @@ export function UploadDialog({
 }: UploadDialogProps) {
   const [contentPath, setContentPath] = useState("");
   const [changeNote, setChangeNote] = useState("");
-  const content = useContentSummary(contentPath, open);
+  // The change note as last filled in from the mod's release notes, to tell it from one the user wrote.
+  const [filledNote, setFilledNote] = useState<string | null>(null);
   const isNew = !item;
   const publishing = Boolean(progress);
 
@@ -88,6 +89,7 @@ export function UploadDialog({
     if (open) {
       setContentPath(item?.contentPath ?? "");
       setChangeNote("");
+      setFilledNote(null);
     }
   }, [open, item?.contentPath]);
 
@@ -95,6 +97,16 @@ export function UploadDialog({
     () => mods.find((m) => m.outputPath.toLowerCase() === contentPath.trim().toLowerCase()) ?? null,
     [mods, contentPath],
   );
+  const content = useContentSummary(contentPath, builtBy?.sourcePath ?? null, open);
+
+  // Fill the change note from the release notes for the version being uploaded, unless the user has written their
+  // own. Waits for the folder to be read, so the note doesn't empty while it is.
+  const releaseNotes = isNew ? null : (content?.releaseNotes ?? null);
+  if (content && releaseNotes !== filledNote) {
+    if (changeNote === "" || changeNote === filledNote) setChangeNote(releaseNotes ?? "");
+    setFilledNote(releaseNotes);
+  }
+  const noteFromFile = filledNote !== null && changeNote === filledNote;
 
   const sortedMods = useMemo(
     () => [...mods].sort((a, b) => a.name.localeCompare(b.name, "en-GB", { sensitivity: "base", numeric: true })),
@@ -270,7 +282,11 @@ export function UploadDialog({
                 placeholder="What's new in this version"
                 className="min-h-40"
               />
-              <FieldDescription>Optional. Shown on the item's Change Notes tab.</FieldDescription>
+              <FieldDescription>
+                {noteFromFile && builtBy && content?.version
+                  ? `From .release-notes\\${content.version}.txt in ${builtBy.name}'s source folder. Shown on the item's Change Notes tab.`
+                  : "Optional. Shown on the item's Change Notes tab."}
+              </FieldDescription>
             </Field>
           )}
 

@@ -310,7 +310,7 @@ fn meta_from(fields: &[(String, String)]) -> Option<ModMeta> {
 /// Reads a config or prefix file as text. Older tools save them in the Windows code page rather than UTF-8, so a byte
 /// that isn't UTF-8, such as an accented letter in an author's name, is replaced rather than losing the whole file:
 /// everything read from it is ASCII. A leading byte order mark is dropped.
-fn read_text(path: &Path) -> Option<String> {
+pub fn read_text(path: &Path) -> Option<String> {
     let bytes = fs::read(path).ok()?;
     let text = String::from_utf8_lossy(&bytes);
     Some(text.strip_prefix('\u{feff}').unwrap_or(&text).to_string())

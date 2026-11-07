@@ -69,6 +69,9 @@ signed in as DayZ (app 221100), which is what lets it publish to DayZ's Workshop
   go on listing a deleted item for a short while, so the app leaves it out of the list.
 - Saving the page and uploading a new version are separate. "Upload new version" sends the files and a change note;
   Steam only uploads what changed, so re-uploading costs little.
+- The upload shows the version in the folder's `mod.cpp`. When the folder is a mod's build output and the mod's source
+  folder has a `.release-notes` folder, the change note is filled in from the file named after that version, such as
+  `.release-notes\1.0.5.txt`, unless one has already been written. Steam reads change notes as BBCode.
 - A folder can't be uploaded while a mod is building into it, nor built into while it's uploading, so Steam never
   gets PBOs that are half written.
 - Each upload first writes a `meta.cpp` into the folder with the item's ID and title, as DayZ Publisher does. Servers

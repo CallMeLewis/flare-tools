@@ -18,9 +18,23 @@ pub struct ContentSummary {
     pub has_mod_cpp: bool,
     /// The version in the folder's `mod.cpp`, which a build sets from the mod's `CfgMods` class.
     pub version: Option<String>,
+    /// The notes for that version from the mod's source folder, if it keeps them. See [`release_notes`].
+    pub release_notes: Option<String>,
     pub file_count: usize,
     pub total_size: u64,
     pub warnings: Vec<String>,
+}
+
+/// The notes for `version` in `.release-notes\<version>.txt` in a mod's source folder, written for the Workshop's
+/// change notes.
+pub fn release_notes(source: &Path, version: &str) -> Option<String> {
+    // The version comes from the uploaded folder's mod.cpp, so it mustn't lead out of the notes folder.
+    if version.is_empty() || version.contains(['/', '\\', ':']) || version.contains("..") {
+        return None;
+    }
+    let text = crate::inspect::read_text(&source.join(".release-notes").join(format!("{version}.txt")))?;
+    let text = text.trim();
+    (!text.is_empty()).then(|| text.to_string())
 }
 
 fn has_extension(path: &Path, ext: &str) -> bool {
@@ -211,6 +225,23 @@ mod tests {
 
         fs::write(root.join("mod.cpp"), "name = \"My Mod\";\nversion = \"1.4.2\";\n").unwrap();
         assert_eq!(inspect(&root.to_string_lossy()).version.as_deref(), Some("1.4.2"));
+
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn reads_a_versions_release_notes() {
+        let root = std::env::temp_dir().join(format!("flare-tools-content-notes-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(root.join(".release-notes")).unwrap();
+        fs::write(root.join(".release-notes").join("1.0.5.txt"), "\u{feff}[h1]Version 1.0.5[/h1]\r\n\r\n").unwrap();
+        fs::write(root.join(".release-notes").join("1.0.6.txt"), "  \n").unwrap();
+        fs::write(root.join("secret.txt"), "not notes").unwrap();
+
+        assert_eq!(release_notes(&root, "1.0.5").as_deref(), Some("[h1]Version 1.0.5[/h1]"));
+        assert_eq!(release_notes(&root, "1.0.6"), None);
+        assert_eq!(release_notes(&root, "1.0.7"), None);
+        assert_eq!(release_notes(&root, "../secret"), None);
 
         fs::remove_dir_all(root).unwrap();
     }

@@ -174,6 +174,8 @@ export interface ContentSummary {
   hasModCpp: boolean;
   /** The version in the folder's mod.cpp, which a build sets from the mod's CfgMods class. */
   version: string | null;
+  /** That version's notes from .release-notes in the source folder of the mod built into the folder. */
+  releaseNotes: string | null;
   fileCount: number;
   totalSize: number;
   warnings: string[];
@@ -256,7 +258,8 @@ export const api = {
   steamPresence: () => invoke<SteamPresence>("steam_presence"),
   workshopItems: () => invoke<WorkshopItem[]>("workshop_items"),
   readFile: (path: string) => invoke<ArrayBuffer>("read_file", { path }),
-  inspectContent: (path: string) => invoke<ContentSummary>("inspect_content", { path }),
+  inspectContent: (path: string, source: string | null) =>
+    invoke<ContentSummary>("inspect_content", { path, source }),
   publishItem: (request: PublishRequest) => invoke<PublishOutcome>("publish_item", { request }),
   deleteItem: (id: string) => invoke<void>("delete_item", { id }),
 };
